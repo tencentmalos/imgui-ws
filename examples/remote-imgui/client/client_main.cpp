@@ -17,19 +17,19 @@ int main(int argc, char** argv) {
 
     RemoteImGui::ImGuiClient client;
 
-    // 初始化客户端
+    // Initialize client
     if (!client.initialize(1280, 720, "Remote ImGui Client")) {
         std::cerr << "Failed to initialize client" << std::endl;
         return 1;
     }
 
-    // 连接到服务器
+    // Connect to server
     if (!client.connect(server_ip, port)) {
         std::cerr << "Failed to connect to server" << std::endl;
         return 1;
     }
 
-    // 运行客户端主循环
+    // Run client main loop
     client.run();
 
     std::cout << "Client shutdown" << std::endl;

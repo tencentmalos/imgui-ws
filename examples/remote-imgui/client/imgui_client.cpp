@@ -1,7 +1,10 @@
 #include "imgui_client.h"
+
+#ifndef DISABLE_NETWORKING
 #include "network_client.h"
 #include "deserializer.h"
 #include "protocol.h"
+#endif
 
 #include <iostream>
 #include <chrono>
@@ -27,26 +30,28 @@ bool ImGuiClient::initialize(int window_width, int window_height, const char* ti
     window_width_ = window_width;
     window_height_ = window_height;
 
-    // 初始化网络客户端
+#ifndef DISABLE_NETWORKING
+    // Initialize network client
     network_client_ = std::make_unique<NetworkClient>();
     deserializer_ = std::make_unique<ImDrawDataDeserializer>();
+#endif
 
-    // 初始化GLFW
+    // Initialize GLFW
     if (!initGLFW()) {
         return false;
     }
 
-    // 初始化OpenGL
+    // Initialize OpenGL
     if (!initOpenGL()) {
         return false;
     }
 
-    // 设置ImGui
+    // Setup ImGui
     if (!setupImGui()) {
         return false;
     }
 
-    // 设置窗口用户指针和回调
+    // Set window user pointer and callbacks
     glfwSetWindowUserPointer(window_, this);
 
     glfwSetKeyCallback(window_, keyCallback);
@@ -56,7 +61,8 @@ bool ImGuiClient::initialize(int window_width, int window_height, const char* ti
     glfwSetWindowSizeCallback(window_, windowSizeCallback);
     glfwSetCharCallback(window_, charCallback);
 
-    // 设置网络回调
+#ifndef DISABLE_NETWORKING
+    // Set network callbacks
     network_client_->setConnectCallback([this](bool success) {
         connected_ = success;
         std::cout << "Connected to server: " << (success ? "SUCCESS" : "FAILED") << std::endl;
@@ -74,22 +80,35 @@ bool ImGuiClient::initialize(int window_width, int window_height, const char* ti
         connected_ = false;
         std::cout << "Disconnected from server" << std::endl;
     });
+#else
+    // Simplified version: assume connected, for testing rendering
+    connected_ = true;
+    std::cout << "Network disabled - running in demo mode" << std::endl;
+#endif
 
     initialized_ = true;
     return true;
 }
 
 bool ImGuiClient::connect(const std::string& server_ip, int port) {
+#ifndef DISABLE_NETWORKING
     if (network_client_) {
         return network_client_->connect(server_ip, std::to_string(port));
     }
+#else
+    // Simplified version: always return success
+    std::cout << "Network disabled - fake connection to " << server_ip << ":" << port << std::endl;
+    return true;
+#endif
     return false;
 }
 
 void ImGuiClient::cleanup() {
+#ifndef DISABLE_NETWORKING
     if (network_client_) {
         network_client_->disconnect();
     }
+#endif
 
     if (window_) {
         glfwDestroyWindow(window_);
@@ -117,7 +136,7 @@ void ImGuiClient::run() {
 
         renderFrame();
 
-        // 简单的延迟
+        // Simple delay
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
 }
@@ -130,23 +149,23 @@ bool ImGuiClient::isConnected() const {
     return connected_;
 }
 
-// 私有的初始化函数 - 参考 imgui/examples/example_glfw_opengl3
+// Private initialization functions - reference imgui/examples/example_glfw_opengl3
 bool ImGuiClient::initGLFW() {
-    // GLFW 错误回调
+    // GLFW error callback
     glfwSetErrorCallback(glfwErrorCallback);
 
-    // 初始化GLFW
+    // Initialize GLFW
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;
         return false;
     }
 
-    // 决定GL+GLSL版本
+    // Decide GL+GLSL version
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
-    // 创建窗口
-    window_ = glfwCreateWindow(window_width_, window_height_, "Remote ImGui Client", NULL, NULL);
+    // Create window
+    window_ = glfwCreateWindow(window_width_, window_height_, title, NULL, NULL);
     if (!window_) {
         std::cerr << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
@@ -154,14 +173,14 @@ bool ImGuiClient::initGLFW() {
     }
 
     glfwMakeContextCurrent(window_);
-    glfwSwapInterval(1); // 启用垂直同步
+    glfwSwapInterval(1); // Enable vertical sync
 
     std::cout << "GLFW initialized successfully" << std::endl;
     return true;
 }
 
 bool ImGuiClient::initOpenGL() {
-    // 初始化GLEW
+    // Initialize GLEW
     GLenum err = glewInit();
     if (err != GLEW_OK) {
         std::cerr << "Failed to initialize GLEW: " << glewGetErrorString(err) << std::endl;
@@ -173,24 +192,24 @@ bool ImGuiClient::initOpenGL() {
 }
 
 bool ImGuiClient::setupImGui() {
-    // 参考 imgui/examples/example_glfw_opengl3 的标准初始化流程
+    // Reference imgui/examples/example_glfw_opengl3 standard initialization flow
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     (void)io;
 
-    // 设置配置
+    // Set configuration
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-    // 设置样式
+    // Set style
     ImGui::StyleColorsDark();
 
-    // 设置后端
+    // Set backend
     const char* glsl_version = "#version 130";
     ImGui_ImplGlfw_InitForOpenGL(window_, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
 
-    // 加载字体
+    // Load fonts
     unsigned char* pixels;
     int width, height;
     io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
@@ -201,29 +220,29 @@ bool ImGuiClient::setupImGui() {
 }
 
 void ImGuiClient::setupFontTexture() {
-    // 从 serializer 获取字体数据并创建纹理
-    // 这里简化处理，实际应该从网络接收字体纹理数据
+    // Get font data from serializer and create texture
+    // Here simplified handling, should actually receive font texture data from network
 
     ImGuiIO& io = ImGui::GetIO();
 
-    // 创建临时纹理
+    // Create temporary texture
     glGenTextures(1, &font_texture_);
     glBindTexture(GL_TEXTURE_2D, font_texture_);
 
-    // 设置纹理参数
+    // Set texture parameters
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    // 上传字体数据
-    // 这里应该从网络客户端获取实际的字体数据
-    // 暂时使用占位数据
-    std::vector<unsigned char> temp_font_data(width * height, 0); // Alpha8 格式
+    // Upload font data
+    // Should get actual font data from network client
+    // Temporarily use placeholder data
+    std::vector<unsigned char> temp_font_data(width * height, 0); // Alpha8 format
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, width, height, 0, GL_UNSIGNED_BYTE, temp_font_data.data());
 
-    // 设置ImGui字体纹理
+    // Set ImGui font texture
     io.Fonts->TexID = (ImTextureID)(intptr_t)font_texture_;
     io.Fonts->ClearInputData();
     io.Fonts->ClearTexData();
@@ -234,29 +253,34 @@ void ImGuiClient::setupFontTexture() {
 }
 
 void ImGuiClient::renderFrame() {
-    // 开始新帧
+    // Start new frame
     ImGui_ImplGlfw_NewFrame();
     ImGui_ImplOpenGL3_NewFrame();
     ImGui::NewFrame();
 
-    // 渲染ImGui界面
+    // Render ImGui interface
     renderImGui();
 
-    // 获取绘制数据并渲染
+    // Get draw data and render
+#ifndef DISABLE_NETWORKING
     const FrameData* frame_data = deserializer_->getFrameData();
     if (frame_data) {
         renderDrawData(frame_data);
     }
+#else
+    // Simplified version: render demo interface
+    renderDemoInterface();
+#endif
 
-    // 结束新帧
+    // End new frame
     ImGui::Render();
 
-    // 交换缓冲区
+    // Swap buffers
     glfwSwapBuffers(window_);
 }
 
 void ImGuiClient::renderImGui() {
-    // 显示连接状态和信息
+    // Display connection status and information
     {
         ImGui::Begin("Remote ImGui Client");
 
@@ -277,12 +301,12 @@ void ImGuiClient::renderImGui() {
         ImGui::End();
     }
 
-    // 控制面板
+    // Control panel
     {
         ImGui::Text("Press ESC or click Exit button to quit");
     }
 
-    // 使用说明
+    // Usage instructions
     {
         ImGui::Begin("Usage Instructions");
         ImGui::BulletText("Connect to server: client.exe <server_ip> <port>");
@@ -295,34 +319,57 @@ void ImGuiClient::renderImGui() {
 }
 
 void ImGuiClient::processNetworkEvents() {
-    // 网络事件在 NetworkClient 中处理
-    // 这里可以添加特殊的事件处理逻辑
+    // Network events are handled in NetworkClient
+    // Can add special event handling logic here
 }
 
+#ifndef DISABLE_NETWORKING
 void ImGuiClient::renderDrawData(const FrameData* frame_data) {
-    // 使用ImGui的渲染流程来渲染接收到的绘制数据
-    // 这需要将二进制数据转换为ImGui的绘制命令
-    // 实现完整的渲染逻辑需要更复杂的数据结构解析
+    // Use ImGui rendering pipeline to render received draw data
+    // This requires converting binary data to ImGui draw commands
+    // Implement complete rendering logic requires more complex data structure parsing
 
-    // 简化实现：直接使用 ImGui 的绘制数据
-    // 正式实现应该将二进制数据反序列化为 ImGui 可理解的格式
+    // Simplified implementation: directly use ImGui draw data
+    // Real implementation should deserialize binary data to ImGui understandable format
 
-    // 暂时，显示一个简单的状态窗口
+    // Temporarily, display a simple status window
     if (frame_data) {
         ImGui::Begin("Remote Frame Data");
         ImGui::Text("Received frame with draw lists");
         ImGui::Text("Display position: %.2f, %.2f",
-                   frame_data->display_pos[0], frame_data->display_pos[1]);
+                   frame_data->header.display_pos[0], frame_data->header.display_pos[1]);
         ImGui::Text("Display size: %.2f, %.2f",
-                   frame_data->display_size[0], frame_data->display_size[1]);
+                   frame_data->header.display_size[0], frame_data->header.display_size[1]);
         ImGui::Text("Framebuffer scale: %.2f, %.2f",
-                   frame_data->framebuffer_scale[0], frame_data->framebuffer_scale[1]);
-        ImGui::Text("Number of draw lists: %zu", frame_data->draw_lists.size());
+                   frame_data->header.framebuffer_scale[0], frame_data->header.framebuffer_scale[1]);
+        ImGui::Text("Number of draw lists: %u", frame_data->header.cmd_lists_count);
         ImGui::End();
     }
 }
+#else
+void ImGuiClient::renderDemoInterface() {
+    // Simplified version demo interface
+    ImGui::ShowDemoWindow();
 
-// GLFW 回调函数实现
+    ImGui::Begin("Remote ImGui Demo");
+    ImGui::Text("This is a demo interface for remote ImGui client");
+    ImGui::Text("Network functionality is disabled for testing");
+
+    static float f = 0.0f;
+    static int counter = 0;
+    ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
+    if (ImGui::Button("Button")) {
+        counter++;
+        std::cout << "Button clicked! Counter: " << counter << std::endl;
+    }
+    ImGui::SameLine();
+    ImGui::Text("counter = %d", counter);
+
+    ImGui::End();
+}
+#endif
+
+// GLFW callback function implementations
 void ImGuiClient::glfwErrorCallback(int error, const char* description) {
     std::cerr << "GLFW Error " << error << ": " << description << std::endl;
 }
@@ -360,30 +407,33 @@ void ImGuiClient::windowSizeCallback(GLFWwindow* window, int width, int height) 
 }
 
 void ImGuiClient::charCallback(GLFWwindow* window, unsigned int codepoint) {
-    // 处理字符输入
+    // Handle character input
     if (initialized_ && connected_) {
-        // 可以添加字符输入处理
+        // Can add character input handling
     }
 }
 
-// 事件发送实现
+// Event sending implementations
 void ImGuiClient::sendKeyEvent(int key, int action) {
+#ifndef DISABLE_NETWORKING
     if (network_client_ && network_client_->isConnected()) {
         EventPacket event;
         event.event_type = (action == GLFW_PRESS || action == GLFW_REPEAT) ?
             EventType::KEY_PRESS : EventType::KEY_DOWN;
         event.key_code = key;
 
-        // 添加窗口大小信息
+        // Add window size information
         glfwGetWindowSize(window_, &window_width_, &window_height_);
         event.client_width = window_width_;
         event.client_height = window_height_;
 
         network_client_->sendEvent(event);
     }
+#endif
 }
 
 void ImGuiClient::sendMouseEvent(int button, int action, double x, double y) {
+#ifndef DISABLE_NETWORKING
     if (network_client_ && network_client_->isConnected()) {
         EventPacket event;
         event.event_type = (action == GLFW_PRESS) ? EventType::MOUSE_DOWN : EventType::MOUSE_UP;
@@ -393,9 +443,11 @@ void ImGuiClient::sendMouseEvent(int button, int action, double x, double y) {
 
         network_client_->sendEvent(event);
     }
+#endif
 }
 
 void ImGuiClient::sendMouseMoveEvent(double x, double y) {
+#ifndef DISABLE_NETWORKING
     if (network_client_ && network_client_->isConnected()) {
         EventPacket event;
         event.event_type = EventType::MOUSE_MOVE;
@@ -404,9 +456,11 @@ void ImGuiClient::sendMouseMoveEvent(double x, double y) {
 
         network_client_->sendEvent(event);
     }
+#endif
 }
 
 void ImGuiClient::sendScrollEvent(double xoffset, double yoffset) {
+#ifndef DISABLE_NETWORKING
     if (network_client_ && network_client_->isConnected()) {
         EventPacket event;
         event.event_type = EventType::MOUSE_WHEEL;
@@ -415,9 +469,11 @@ void ImGuiClient::sendScrollEvent(double xoffset, double yoffset) {
 
         network_client_->sendEvent(event);
     }
+#endif
 }
 
 void ImGuiClient::sendResizeEvent(int width, int height) {
+#ifndef DISABLE_NETWORKING
     if (network_client_ && network_client_->isConnected()) {
         EventPacket event;
         event.event_type = EventType::RESIZE;
@@ -426,6 +482,7 @@ void ImGuiClient::sendResizeEvent(int width, int height) {
 
         network_client_->sendEvent(event);
     }
+#endif
 }
 
 } // namespace RemoteImGui

@@ -9,13 +9,14 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # 包含目录
 include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/../..
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../third-party/imgui/imgui
 )
 
 # ImGui 源文件
 set(IMGUI_SOURCES
     ../../../third-party/imgui/imgui/imgui.cpp
+    ../../../third-party/imgui/imgui/imgui_demo.cpp
     ../../../third-party/imgui/imgui/imgui_draw.cpp
     ../../../third-party/imgui/imgui/imgui_tables.cpp
     ../../../third-party/imgui/imgui/imgui_widgets.cpp
@@ -25,19 +26,32 @@ set(IMGUI_SOURCES
 set(EVENT__DISABLE_SAMPLES ON CACHE BOOL "Disable libevent samples")
 set(EVENT__DISABLE_TESTS ON CACHE BOOL "Disable libevent tests")
 set(EVENT__DISABLE_OPENSSL ON CACHE BOOL "Disable OpenSSL support")
+set(EVENT__DISABLE_THREAD_SUPPORT ON CACHE BOOL "Disable thread support for minimal build")
+set(EVENT__DISABLE_MM_REPLACEMENT ON CACHE BOOL "Disable memory management replacement")
+set(EVENT__DISABLE_DEBUG_MODE ON CACHE BOOL "Disable debug mode")
 
 # 使用 libevent/tnt 目录下的 CMakeLists.txt
 add_subdirectory(../../../third-party/libevent/tnt libevent_build)
 
-# Server 可执行文件
+# 简化服务器可执行文件（不依赖libevent）
+add_executable(simple-imgui-server
+    simple_server.cpp
+    ../serializer.cpp
+    ../serializer.h
+    ${IMGUI_SOURCES}
+)
+
+# 原始服务器可执行文件（需要libevent修复）
 add_executable(remote-imgui-server
     main.cpp
+    ../serializer.cpp
     ../protocol.h
     ../serializer.h
     ../common.h
     ../network_client.h
     ../network_client.cpp
     ../deserializer.h
+    ../deserializer.cpp
     ${IMGUI_SOURCES}
 )
 
