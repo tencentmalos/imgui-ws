@@ -22,13 +22,12 @@ set(IMGUI_SOURCES
     ../../../third-party/imgui/imgui/imgui_widgets.cpp
 )
 
-# 添加 libevent (使用 tnt 目录下的 CMakeLists.txt)
-set(EVENT__DISABLE_SAMPLES ON CACHE BOOL "Disable libevent samples")
-set(EVENT__DISABLE_TESTS ON CACHE BOOL "Disable libevent tests")
-set(EVENT__DISABLE_OPENSSL ON CACHE BOOL "Disable OpenSSL support")
-set(EVENT__DISABLE_THREAD_SUPPORT ON CACHE BOOL "Disable thread support for minimal build")
-set(EVENT__DISABLE_MM_REPLACEMENT ON CACHE BOOL "Disable memory management replacement")
-set(EVENT__DISABLE_DEBUG_MODE ON CACHE BOOL "Disable debug mode")
+# set(EVENT__DISABLE_SAMPLES ON CACHE BOOL "Disable libevent samples")
+# set(EVENT__DISABLE_TESTS ON CACHE BOOL "Disable libevent tests")
+# set(EVENT__DISABLE_OPENSSL ON CACHE BOOL "Disable OpenSSL support")
+# set(EVENT__DISABLE_THREAD_SUPPORT ON CACHE BOOL "Disable thread support for minimal build")
+# set(EVENT__DISABLE_MM_REPLACEMENT ON CACHE BOOL "Disable memory management replacement")
+# set(EVENT__DISABLE_DEBUG_MODE ON CACHE BOOL "Disable debug mode")
 
 # 使用 libevent/tnt 目录下的 CMakeLists.txt
 add_subdirectory(../../../third-party/libevent/tnt libevent_build)
@@ -67,21 +66,21 @@ if(WIN32)
     )
 endif()
 
-# 编译选项
-if(MSVC)
-    target_compile_options(remote-imgui-server PRIVATE /W4)
-    target_compile_definitions(remote-imgui-server PRIVATE
-        _CRT_SECURE_NO_WARNINGS
-        WIN32_LEAN_AND_MEAN
-        NOMINMAX
-        EVENT__DISABLE_THREAD_SUPPORT
-    )
-else()
-    target_compile_options(remote-imgui-server PRIVATE -Wall -Wextra -pedantic)
-    target_compile_definitions(remote-imgui-server PRIVATE
-        EVENT__DISABLE_THREAD_SUPPORT
-    )
-endif()
+# # 编译选项
+# if(MSVC)
+#     target_compile_options(remote-imgui-server PRIVATE /W4)
+#     target_compile_definitions(remote-imgui-server PRIVATE
+#         _CRT_SECURE_NO_WARNINGS
+#         WIN32_LEAN_AND_MEAN
+#         NOMINMAX
+#         EVENT__DISABLE_THREAD_SUPPORT
+#     )
+# else()
+#     target_compile_options(remote-imgui-server PRIVATE -Wall -Wextra -pedantic)
+#     target_compile_definitions(remote-imgui-server PRIVATE
+#         EVENT__DISABLE_THREAD_SUPPORT
+#     )
+# endif()
 
 # 安装
 install(TARGETS remote-imgui-server

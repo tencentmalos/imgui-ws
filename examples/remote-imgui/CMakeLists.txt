@@ -10,18 +10,7 @@ message(STATUS "Building Remote ImGui with modular client/server structure")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # 添加子目录
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/server/CMakeLists.txt")
-    add_subdirectory(server)
-    message(STATUS "Added server subdirectory")
-else()
-    message(FATAL_ERROR "Server CMakeLists.txt not found!")
-endif()
-
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/client/CMakeLists.txt")
-    add_subdirectory(client)
-    message(STATUS "Added client subdirectory")
-else()
-    message(FATAL_ERROR "Client CMakeLists.txt not found!")
-endif()
+add_subdirectory(server)
+add_subdirectory(client)
 
 message(STATUS "=== Remote ImGui Build Configuration Complete ===")
