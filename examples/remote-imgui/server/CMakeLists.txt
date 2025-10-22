@@ -10,7 +10,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # 包含目录
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/..
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../../third-party/imgui/imgui
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../imgui-ws/third-party/imgui/imgui
 )
 
 # ImGui 源文件
@@ -29,8 +29,7 @@ set(IMGUI_SOURCES
 # set(EVENT__DISABLE_MM_REPLACEMENT ON CACHE BOOL "Disable memory management replacement")
 # set(EVENT__DISABLE_DEBUG_MODE ON CACHE BOOL "Disable debug mode")
 
-# 使用 libevent/tnt 目录下的 CMakeLists.txt
-add_subdirectory(../../../third-party/libevent/tnt libevent_build)
+# libevent is added at parent level to avoid duplicate targets
 
 # 简化服务器可执行文件（不依赖libevent）
 add_executable(simple-imgui-server
@@ -88,3 +87,4 @@ install(TARGETS remote-imgui-server
 )
 
 message(STATUS "Remote ImGui Server configuration completed")
+

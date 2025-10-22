@@ -9,3 +9,4 @@ data/
 .cquery_cache
 *.code-workspace
 examples/remote-imgui/build_x64
+examples/remote-imgui/client/build_simple

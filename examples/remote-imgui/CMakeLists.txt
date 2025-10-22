@@ -9,6 +9,9 @@ message(STATUS "Building Remote ImGui with modular client/server structure")
 # 设置输出目录
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+# Add libevent once at top level to avoid duplicate targets
+add_subdirectory(../../../imgui-ws/third-party/libevent/tnt libevent_build)
+
 # 添加子目录
 add_subdirectory(server)
 add_subdirectory(client)
