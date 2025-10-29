@@ -54,6 +54,7 @@ private:
     // Rendering
     void renderFrame();
     void renderImGui();
+    void integrateRemoteFrameData(ImDrawData* draw_data, const FrameData* frame_data);
 
     // Members
     GLFWwindow* window_ = nullptr;
@@ -73,12 +74,8 @@ private:
     // Network client
     std::unique_ptr<NetworkClient> network_client_;
 
-    // Window flags
-    bool show_demo_window_ = false;
-    bool show_another_window_ = false;
+    // Window flags - only show remote content and network settings
     bool show_network_window_ = true;
-    bool show_data_window_ = true;
-    bool show_remote_window_ = true;
 
     // Frame counter
     int frame_count_ = 0;
@@ -263,123 +260,42 @@ void SimpleOpenGLClient::renderFrame() {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    // Render ImGui
+    // Render ImGui (either remote or local UI)
     renderImGui();
 
     // Rendering
+    ImDrawData* draw_data = ImGui::GetDrawData();
+
+    // If we have remote frame data, integrate it into the draw data
+    if (deserializer_.hasValidFrame()) {
+        const FrameData* frame_data = deserializer_.getFrameData();
+        if (frame_data) {
+            integrateRemoteFrameData(draw_data, frame_data);
+        }
+    }
+
     ImGui::Render();
     int display_w, display_h;
     glfwGetFramebufferSize(window_, &display_w, &display_h);
     glViewport(0, 0, display_w, display_h);
     glClearColor(clear_color_.x * clear_color_.w, clear_color_.y * clear_color_.w, clear_color_.z * clear_color_.w, clear_color_.w);
     glClear(GL_COLOR_BUFFER_BIT);
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+    if (draw_data != nullptr) {
+      ImGui_ImplOpenGL3_RenderDrawData(draw_data);
+    }
 
     // Swap buffers
     glfwSwapBuffers(window_);
 }
 
 void SimpleOpenGLClient::renderImGui() {
-    // Main menu bar
-    if (ImGui::BeginMainMenuBar()) {
-        if (ImGui::BeginMenu("File")) {
-            if (ImGui::MenuItem("New")) {}
-            if (ImGui::MenuItem("Open", "Ctrl+O")) {}
-            ImGui::Separator();
-            if (ImGui::MenuItem("Quit", "Alt+F4")) {
-                glfwSetWindowShouldClose(window_, true);
-            }
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("View")) {
-            ImGui::MenuItem("Demo Window", NULL, &show_demo_window_);
-            ImGui::MenuItem("Another Window", NULL, &show_another_window_);
-            ImGui::MenuItem("Network Settings", NULL, &show_network_window_);
-            ImGui::MenuItem("Data Viewer", NULL, &show_data_window_);
-            ImGui::MenuItem("Remote ImGui", NULL, &show_remote_window_);
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Help")) {
-            if (ImGui::MenuItem("About")) {
-                show_demo_window_ = true;
-            }
-            ImGui::EndMenu();
-        }
-        ImGui::EndMainMenuBar();
+    // Only show local UI (network settings) when no remote data
+    if (!deserializer_.hasValidFrame()) {
+        ImGui::Text("Waiting for data from server...");
+        ImGui::Text("Connect to a server to receive ImGui content");
     }
-
-    // Remote ImGui main window
-    static bool show_remote_window = true;
-    if (show_remote_window) {
-        ImGui::Begin("Remote ImGui Client - Real OpenGL Rendering", &show_remote_window);
-
-        ImGui::Text("This is a real OpenGL-based ImGui client");
-        ImGui::Text("Window size: %dx%d", window_width_, window_height_);
-
-        // Get current window size
-        int display_w, display_h;
-        glfwGetWindowSize(window_, &display_w, &display_h);
-        ImGui::Text("Current window size: %dx%d", display_w, display_h);
-
-        ImGui::Separator();
-
-        ImGui::ColorEdit3("Background Color", (float*)&clear_color_);
-
-        ImGui::Text("Data reception:");
-        ImGui::SameLine();
-        ImGui::Text("Received: %zu bytes", received_data_.size());
-
-        ImGui::Separator();
-
-        ImGui::Text("Performance:");
-        ImGuiIO& io = ImGui::GetIO();
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-                    1000.0f / io.Framerate, io.Framerate);
-        ImGui::Text("Vertices: %d, Indices: %d", io.MetricsRenderVertices, io.MetricsRenderIndices);
-
-        if (frame_count_ % 60 == 0 && frame_count_ > 0) {
-            // Print draw data info every 60 frames
-            ImDrawData* draw_data = ImGui::GetDrawData();
-            if (draw_data && draw_data->Valid) {
-                std::cout << "Frame " << frame_count_ << ": "
-                          << draw_data->CmdListsCount << " command lists, "
-                          << draw_data->TotalVtxCount << " vertices, "
-                          << draw_data->TotalIdxCount << " indices" << std::endl;
-            }
-        }
-
-        ImGui::Separator();
-
-        // Add some interactive elements
-        static float rotation = 0.0f;
-        ImGui::SliderFloat("Rotation", &rotation, 0.0f, 360.0f);
-        rotation += 0.1f;
-        if (rotation > 360.0f) rotation = 0.0f;
-
-        static bool show_about = false;
-        if (ImGui::Button("Show About")) {
-            show_about = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Exit")) {
-            glfwSetWindowShouldClose(window_, true);
-        }
-
-        if (show_about) {
-            ImGui::Begin("About", &show_about);
-            ImGui::Text("Remote ImGui Client");
-            ImGui::Text("Built with real OpenGL rendering");
-            ImGui::Text("Based on Dear ImGui official examples");
-            ImGui::Separator();
-            ImGui::Text("Controls:");
-            ImGui::BulletText("Use menu to toggle windows");
-            ImGui::BulletText("Click and drag to interact");
-            ImGui::BulletText("Close window to exit");
-            ImGui::End();
-        }
-
-        ImGui::End();
-    }
+    // When we have remote data, local UI rendering will be handled in integrateRemoteFrameData
 
     // Network settings window
     if (show_network_window_) {
@@ -416,130 +332,8 @@ void SimpleOpenGLClient::renderImGui() {
 
         ImGui::Separator();
 
-        if (ImGui::Button("Simulate Data Reception")) {
-            // Simulate receiving different data patterns
-            static int pattern = 0;
-            received_data_.clear();
-            for (int i = 0; i < 512; ++i) {
-                received_data_.push_back(0x20 + ((i + pattern) % 96));
-            }
-            pattern = (pattern + 1) % 4;
-            std::cout << "Simulated data reception: " << received_data_.size() << " bytes" << std::endl;
-        }
-
         ImGui::Text("Network functionality implemented with libevent");
-
-        ImGui::End();
-    }
-
-    // Data viewer window
-    if (show_data_window_) {
-        ImGui::Begin("Data Viewer", &show_data_window_);
-
-        ImGui::Text("Received Data Display:");
-
-        // Display received data in a hex viewer
-        if (!received_data_.empty()) {
-            if (ImGui::BeginChild("Hex View", ImVec2(0, 200), true)) {
-                ImGui::Text("Hex view (first 256 bytes):");
-
-                for (size_t i = 0; i < std::min((size_t)256, received_data_.size()); i += 16) {
-                    // Offset
-                    ImGui::Text("%04zx: ", i);
-                    ImGui::SameLine();
-
-                    // Hex bytes
-                    for (int j = 0; j < 16 && (i + j) < received_data_.size(); ++j) {
-                        ImGui::Text("%02X ", received_data_[i + j]);
-                        ImGui::SameLine();
-                    }
-
-                    // Fill remaining space
-                    for (int j = (i + 15 < received_data_.size() ? 16 : (received_data_.size() - i)); j < 16; ++j) {
-                        ImGui::Text("   ");
-                        ImGui::SameLine();
-                    }
-
-                    // ASCII representation
-                    ImGui::SameLine();
-                    ImGui::Text("| ");
-                    for (int j = 0; j < 16 && (i + j) < received_data_.size(); ++j) {
-                        char c = received_data_[i + j];
-                        ImGui::Text("%c", (c >= 32 && c <= 126) ? c : '.');
-                        ImGui::SameLine();
-                    }
-                    ImGui::NewLine();
-                }
-
-                ImGui::Text("Total: %zu bytes", received_data_.size());
-                ImGui::EndChild();
-            }
-        } else {
-            ImGui::Text("No data received yet");
-        }
-
-        ImGui::End();
-    }
-
-    // Demo window
-    if (show_demo_window_) {
-        ImGui::Begin("Demo Window", &show_demo_window_);
-        ImGui::Text("This would show ImGui demo content");
-        ImGui::Text("Current frame: %d", frame_count_);
-
-        static float f = 0.0f;
-        static int counter = 0;
-        ImGui::SliderFloat("Float", &f, 0.0f, 1.0f);
-        if (ImGui::Button("Button")) {
-            counter++;
-        }
-        ImGui::SameLine();
-        ImGui::Text("counter = %d", counter);
-
-        ImGui::End();
-    }
-
-    // Another window
-    if (show_another_window_) {
-        ImGui::Begin("Another Window", &show_another_window_);
-        ImGui::Text("This is another demo window");
-        ImGui::Text("You can add your own ImGui code here");
-
-        static float f = 0.0f;
-        static int counter = 0;
-        ImGui::SliderFloat("Float", &f, 0.0f, 1.0f);
-        if (ImGui::Button("Button")) {
-            counter++;
-        }
-        ImGui::SameLine();
-        ImGui::Text("counter = %d", counter);
-
-        // Color picker
-        static ImVec4 color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
-        ImGui::ColorEdit3("Color", (float*)&color);
-
-        ImGui::End();
-    }
-
-    // Control window
-    {
-        ImGui::Begin("Controls");
-
-        ImGui::Checkbox("Demo Window", &show_demo_window_);
-        ImGui::Checkbox("Another Window", &show_another_window_);
-        ImGui::Checkbox("Network Settings", &show_network_window_);
-        ImGui::Checkbox("Data Viewer", &show_data_window_);
-        ImGui::Checkbox("Remote ImGui", &show_remote_window_);
-
-        ImGui::Separator();
-
-        ImGui::Text("Frame: %d", frame_count_);
-
-        if (ImGui::Button("Exit Application")) {
-            glfwSetWindowShouldClose(window_, true);
-        }
-
-        ImGui::Text("Close window to exit");
+        ImGui::Text("Data received: %zu bytes", received_data_.size());
 
         ImGui::End();
     }
@@ -554,9 +348,8 @@ void SimpleOpenGLClient::run() {
         return;
     }
 
-    std::cout << "Starting real OpenGL ImGui client..." << std::endl;
-    std::cout << "Window created - you should see ImGui interface" << std::endl;
-    std::cout << "Close window to quit" << std::endl;
+    std::cout << "Starting remote ImGui client..." << std::endl;
+    std::cout << "Window created - connect to server to receive content" << std::endl;
 
     // Simulate initial connection
     connect("127.0.0.1", 8080);
@@ -570,15 +363,147 @@ void SimpleOpenGLClient::run() {
         renderFrame();
     }
 
-    std::cout << "Real OpenGL client main loop ended" << std::endl;
+    std::cout << "Remote ImGui client ended" << std::endl;
+}
+
+void SimpleOpenGLClient::integrateRemoteFrameData(ImDrawData* draw_data, const FrameData* frame_data) {
+    if (!draw_data || !frame_data || frame_data->header.cmd_lists_count == 0) {
+        return;
+    }
+
+    // Update display size from server data
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = ImVec2(frame_data->header.display_size[0], frame_data->header.display_size[1]);
+    io.DisplayFramebufferScale = ImVec2(frame_data->header.framebuffer_scale[0], frame_data->header.framebuffer_scale[1]);
+
+    // Set display position from server data
+    draw_data->DisplayPos = ImVec2(frame_data->header.display_pos[0], frame_data->header.display_pos[1]);
+    draw_data->DisplaySize = ImVec2(frame_data->header.display_size[0], frame_data->header.display_size[1]);
+    draw_data->FramebufferScale = ImVec2(frame_data->header.framebuffer_scale[0], frame_data->header.framebuffer_scale[1]);
+
+    // Count total vertices and indices needed
+    size_t total_vtx = 0;
+    size_t total_idx = 0;
+    for (uint32_t i = 0; i < frame_data->header.cmd_lists_count; i++) {
+        if (i < frame_data->command_counts.size()) {
+            uint32_t cmd_count = frame_data->command_counts[i];
+            uint32_t command_offset = (i < frame_data->command_offsets.size()) ? frame_data->command_offsets[i] : 0;
+
+            for (uint32_t j = 0; j < cmd_count && command_offset + j < frame_data->draw_commands.size(); j++) {
+                total_idx += frame_data->draw_commands[command_offset + j].idx_count;
+            }
+        }
+    }
+    total_vtx = frame_data->vertex_buffers.size();
+
+    if (total_vtx == 0 || total_idx == 0) {
+        return;
+    }
+
+    // Allocate draw lists for remote content
+    int old_cmd_lists_count = draw_data->CmdListsCount;
+    draw_data->CmdListsCount += frame_data->header.cmd_lists_count;
+    draw_data->CmdLists = (ImDrawList**)realloc(draw_data->CmdLists, draw_data->CmdListsCount * sizeof(ImDrawList*));
+
+    // Create and populate each draw list from remote data
+    size_t vertex_offset = 0;
+    size_t index_offset = 0;
+    size_t command_offset = 0;
+
+    for (uint32_t i = 0; i < frame_data->header.cmd_lists_count; i++) {
+        // Get offsets for this command list
+        if (i < frame_data->vertex_offsets.size() &&
+            i < frame_data->index_offsets.size() &&
+            i < frame_data->command_offsets.size()) {
+
+            vertex_offset = frame_data->vertex_offsets[i];
+            index_offset = frame_data->index_offsets[i];
+            command_offset = frame_data->command_offsets[i];
+        }
+
+        // Calculate command count for this list
+        uint32_t cmd_count = (i < frame_data->command_counts.size()) ?
+                           frame_data->command_counts[i] : 0;
+
+        // Count vertices and indices for this list
+        size_t list_vtx_count = 0;
+        size_t list_idx_count = 0;
+
+        for (uint32_t j = 0; j < cmd_count && command_offset + j < frame_data->draw_commands.size(); j++) {
+            const DrawCmd& cmd = frame_data->draw_commands[command_offset + j];
+            list_idx_count += cmd.idx_count;
+        }
+
+        // Determine vertex count range for this list
+        size_t next_vertex_offset = (i + 1 < frame_data->vertex_offsets.size()) ?
+                                  frame_data->vertex_offsets[i + 1] : frame_data->vertex_buffers.size();
+        size_t next_index_offset = (i + 1 < frame_data->index_offsets.size()) ?
+                                  frame_data->index_offsets[i + 1] : frame_data->index_buffers.size();
+
+        list_vtx_count = next_vertex_offset - vertex_offset;
+        list_idx_count = next_index_offset - index_offset;
+
+        if (list_vtx_count == 0 || list_idx_count == 0) {
+            continue;
+        }
+
+        // Create new draw list
+        ImDrawList* new_list = new ImDrawList(ImGui::GetDrawListSharedData());
+
+        // Allocate buffers
+        new_list->IdxBuffer.resize(list_idx_count);
+        new_list->VtxBuffer.resize(list_vtx_count);
+
+        // Copy vertex data
+        for (size_t v = 0; v < list_vtx_count; v++) {
+            if (vertex_offset + v < frame_data->vertex_buffers.size()) {
+                new_list->VtxBuffer[v] = frame_data->vertex_buffers[vertex_offset + v];
+            }
+        }
+
+        // Copy index data (adjust indices to be relative to this list)
+        for (size_t idx = 0; idx < list_idx_count; idx++) {
+            if (index_offset + idx < frame_data->index_buffers.size()) {
+                new_list->IdxBuffer[idx] = frame_data->index_buffers[index_offset + idx];
+            }
+        }
+
+        // Copy draw commands
+        new_list->CmdBuffer.resize(cmd_count);
+        for (uint32_t j = 0; j < cmd_count; j++) {
+            if (command_offset + j < frame_data->draw_commands.size()) {
+                const DrawCmd& src_cmd = frame_data->draw_commands[command_offset + j];
+                ImDrawCmd& dst_cmd = new_list->CmdBuffer[j];
+
+                dst_cmd.ElemCount = src_cmd.idx_count;
+                dst_cmd.ClipRect.x = src_cmd.clip_rect[0] / 1000.0f;
+                dst_cmd.ClipRect.y = src_cmd.clip_rect[1] / 1000.0f;
+                dst_cmd.ClipRect.z = src_cmd.clip_rect[2] / 1000.0f;
+                dst_cmd.ClipRect.w = src_cmd.clip_rect[3] / 1000.0f;
+                dst_cmd.TextureId = (ImTextureID)(uintptr_t)src_cmd.texture_id;
+
+                // Set index offset for this command within the list
+                dst_cmd.IdxOffset = 0; // Will be calculated during rendering
+                dst_cmd.VtxOffset = 0; // Will be calculated during rendering
+            }
+        }
+
+        // Add the new draw list to draw data
+        draw_data->CmdLists[old_cmd_lists_count + i] = new_list;
+    }
+
+    // Update total counts
+    draw_data->TotalVtxCount += total_vtx;
+    draw_data->TotalIdxCount += total_idx;
+    draw_data->Valid = true;
 }
 
 int main(int, char** argv) {
     SimpleOpenGLClient client;
 
     // Initialize client
-    if (!client.initialize(1280, 720, "Remote ImGui Client - Real OpenGL Rendering")) {
-        std::cerr << "Failed to initialize real OpenGL client!" << std::endl;
+    if (!client.initialize(1280, 720, "Remote ImGui Client")) {
+        std::cerr << "Failed to initialize remote ImGui client!" << std::endl;
         return -1;
     }
 
