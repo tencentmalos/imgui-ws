@@ -91,6 +91,21 @@ static ServerInstance g_server;
 int main(int argc, char** argv) {
     printf("Usage: %s [port]\n", argv[0]);
 
+#ifdef WIN32
+    // 1. Declare a WSADATA structure
+    WSADATA wsaData;
+    // 2. Request Winsock version 2.2 and initialize it
+    // MAKEWORD(2, 2) creates the version number WORD.
+    int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (result != 0) {
+      // WSAStartup failed.
+      std::cerr << "WSAStartup failed with error code: " << result << std::endl;
+      return 1; // Exit the application
+    }
+#endif
+
+
+
     int port = 8080;
     if (argc > 1) port = atoi(argv[1]);
 
@@ -99,6 +114,8 @@ int main(int argc, char** argv) {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+    io.DisplaySize = ImVec2(1280, 720);
 
     ImGui::StyleColorsDark();
 
@@ -185,6 +202,12 @@ int main(int argc, char** argv) {
     // Cleanup
     ImGui::DestroyContext();
     g_server.cleanup();
+
+#ifdef WIN32
+    // 4. When your application is done with all network operations, call WSACleanup()
+    WSACleanup();
+#endif
+
 
     printf("Server stopped\n");
     return 0;
