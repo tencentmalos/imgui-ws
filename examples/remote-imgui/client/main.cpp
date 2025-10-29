@@ -19,6 +19,7 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "deserializer.h"
+#include "network_client_impl.h"
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1900) && !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
 #pragma comment(lib, "legacy_stdio_definitions")
@@ -69,6 +70,9 @@ private:
     std::vector<uint8_t> received_data_;
     ImDrawDataDeserializer deserializer_;
 
+    // Network client
+    std::unique_ptr<NetworkClient> network_client_;
+
     // Window flags
     bool show_demo_window_ = false;
     bool show_another_window_ = false;
@@ -115,15 +119,41 @@ bool SimpleOpenGLClient::initialize(int window_width, int window_height, const c
 }
 
 bool SimpleOpenGLClient::connect(const std::string& server_ip, int port) {
-    std::cout << "Connecting to " << server_ip << ":" << port << " (demo mode)" << std::endl;
+    std::cout << "Connecting to " << server_ip << ":" << port << std::endl;
 
-    // Simulate receiving some data
-    received_data_.clear();
-    for (int i = 0; i < 256; ++i) {
-        received_data_.push_back(0x40 + (i % 64));
+    // Create network client if not exists
+    if (!network_client_) {
+        network_client_ = std::make_unique<NetworkClient>();
+
+        // Set network callbacks
+        network_client_->setConnectCallback([this](bool connected) {
+            if (connected) {
+                std::cout << "Successfully connected to server" << std::endl;
+            } else {
+                std::cout << "Failed to connect to server" << std::endl;
+            }
+        });
+
+        network_client_->setDisconnectCallback([this]() {
+            std::cout << "Disconnected from server" << std::endl;
+        });
+
+        network_client_->setReceiveCallback([this](const uint8_t* data, size_t size) {
+            // Process received ImGui draw data
+            if (deserializer_.deserializePacket(data, size)) {
+                std::cout << "Received and deserialized " << size << " bytes of draw data" << std::endl;
+
+                // Store data for visualization
+                received_data_.clear();
+                received_data_.insert(received_data_.end(), data, data + size);
+            } else {
+                std::cout << "Failed to deserialize received data" << std::endl;
+            }
+        });
     }
 
-    return true;
+    // Try to connect
+    return network_client_->connect(server_ip, port);
 }
 
 bool SimpleOpenGLClient::setupGLFWWindow() {
@@ -182,6 +212,12 @@ bool SimpleOpenGLClient::setupOpenGL() {
 }
 
 void SimpleOpenGLClient::cleanup() {
+    // Cleanup network client
+    if (network_client_) {
+        network_client_->disconnect();
+        network_client_.reset();
+    }
+
     if (window_) {
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
@@ -360,8 +396,22 @@ void SimpleOpenGLClient::renderImGui() {
         }
         ImGui::SameLine();
         if (ImGui::Button("Disconnect")) {
-            std::cout << "Disconnecting from server" << std::endl;
+            if (network_client_) {
+                network_client_->disconnect();
+                std::cout << "Disconnecting from server" << std::endl;
+            }
             received_data_.clear();
+        }
+
+        ImGui::Separator();
+
+        // Show connection status
+        if (network_client_) {
+            bool connected = network_client_->isConnected();
+            ImGui::Text("Status: %s", connected ? "Connected" : "Disconnected");
+            ImGui::Text("Server: %s", network_client_->getServerInfo().c_str());
+        } else {
+            ImGui::Text("Status: Not initialized");
         }
 
         ImGui::Separator();
@@ -377,7 +427,7 @@ void SimpleOpenGLClient::renderImGui() {
             std::cout << "Simulated data reception: " << received_data_.size() << " bytes" << std::endl;
         }
 
-        ImGui::Text("Note: This is a demo - no real networking implemented yet");
+        ImGui::Text("Network functionality implemented with libevent");
 
         ImGui::End();
     }

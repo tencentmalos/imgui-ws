@@ -1,6 +1,7 @@
 #include "imgui.h"
 #include "protocol.h"
 #include "serializer.h"
+#include "network_server.h"
 
 #include "common.h"
 
@@ -13,22 +14,71 @@
 // Global server instance
 struct ServerInstance {
     std::unique_ptr<ImDrawDataSerializer> serializer;
+    std::unique_ptr<NetworkServer> network_server;
     std::atomic<int> client_count{0};
 
-    // Simplified version - basic implementation
-    void initialize() {
+    // Network callbacks
+    void onClientConnect(int client_id) {
+        client_count++;
+        std::cout << "Client connected: " << client_id << " (total: " << client_count.load() << ")" << std::endl;
+    }
+
+    void onClientDisconnect(int client_id) {
+        client_count--;
+        std::cout << "Client disconnected: " << client_id << " (total: " << client_count.load() << ")" << std::endl;
+    }
+
+    void onClientData(int client_id, const uint8_t* data, size_t size) {
+        // Handle incoming data from clients (if needed)
+        std::cout << "Received " << size << " bytes from client " << client_id << std::endl;
+    }
+
+    // Initialize server with networking
+    bool initialize(int port) {
         serializer = std::make_unique<ImDrawDataSerializer>();
-        std::cout << "Server initialized" << std::endl;
+
+        // Create network server
+        network_server = std::make_unique<NetworkServer>();
+
+        // Set network callbacks
+        network_server->setConnectCallback([this](int client_id) {
+            onClientConnect(client_id);
+        });
+
+        network_server->setDisconnectCallback([this](int client_id) {
+            onClientDisconnect(client_id);
+        });
+
+        network_server->setReceiveCallback([this](int client_id, const uint8_t* data, size_t size) {
+            onClientData(client_id, data, size);
+        });
+
+        // Start network server
+        if (!network_server->start(port)) {
+            std::cerr << "Failed to start network server on port " << port << std::endl;
+            return false;
+        }
+
+        std::cout << "Server initialized with networking on port " << port << std::endl;
+        return true;
     }
 
     void broadcastDrawData() {
-        if (serializer) {
-            // Simplified version: draw data serialization
-            std::cout << "Broadcasting draw data to " << client_count.load() << " clients" << std::endl;
+        if (serializer && network_server && client_count.load() > 0) {
+            const auto& data = serializer->getSerializedData();
+            if (!data.empty()) {
+                network_server->broadcast(data.data(), data.size());
+                std::cout << "Broadcasted " << data.size() << " bytes to " << client_count.load() << " clients" << std::endl;
+            }
         }
     }
 
     void cleanup() {
+        if (network_server) {
+            network_server->stop();
+            network_server.reset();
+        }
+
         serializer.reset();
         client_count = 0;
         std::cout << "Server cleanup completed" << std::endl;
@@ -58,7 +108,10 @@ int main(int argc, char** argv) {
     io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
 
     // Initialize server
-    g_server.initialize();
+    if (!g_server.initialize(port)) {
+        fprintf(stderr, "Failed to initialize server on port %d\n", port);
+        return -1;
+    }
 
     printf("Remote ImGui Server started on port %d\n", port);
     printf("Press Ctrl+C to stop\n");

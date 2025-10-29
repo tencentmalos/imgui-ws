@@ -37,6 +37,8 @@ add_executable(remote-imgui-server
     ../protocol.h
     ../serializer.h
     ../common.h
+    ../network_server.h
+    ../network_server.cpp
     ../network_client.h
     ../network_client.cpp
     ../deserializer.h
@@ -46,7 +48,9 @@ add_executable(remote-imgui-server
 
 # 链接库
 target_link_libraries(remote-imgui-server
-    event_core  # libevent 核心库（源码编译）
+    event_core
+    event
+    # event_extra  # libevent extra libraries for networking
 )
 
 if(WIN32)

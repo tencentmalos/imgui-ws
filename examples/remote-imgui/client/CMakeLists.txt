@@ -25,9 +25,11 @@ set(BACKEND_SOURCES
 )
 
 # Create simple OpenGL client executable
-add_executable(simple-opengl-client
-    simple_opengl_client.cpp
+add_executable(remote-imgui-client
+    main.cpp
     ../deserializer.cpp
+    ../network_client_impl.h
+    ../network_client_impl.cpp
     ${IMGUI_SOURCES}
     ${BACKEND_SOURCES}
 )
@@ -35,7 +37,7 @@ add_executable(simple-opengl-client
 
 
 # Include directories
-target_include_directories(simple-opengl-client PRIVATE
+target_include_directories(remote-imgui-client PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ../../../third-party/imgui
@@ -47,7 +49,7 @@ target_include_directories(simple-opengl-client PRIVATE
 
 # Windows specific libraries and settings
 if(WIN32)
-    target_link_libraries(simple-opengl-client
+    target_link_libraries(remote-imgui-client
         ws2_32
         wsock32
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../third-party/imgui/imgui/examples/libs/glfw/lib-vc2010-64/glfw3.lib
@@ -56,7 +58,7 @@ if(WIN32)
 
     # opengl32
     # IMGUI_IMPL_OPENGL_LOADER_CUSTOM
-    target_compile_definitions(simple-opengl-client PRIVATE
+    target_compile_definitions(remote-imgui-client PRIVATE
         WIN32_LEAN_AND_MEAN
         NOMINMAX
         _CRT_SECURE_NO_WARNINGS
@@ -64,19 +66,20 @@ if(WIN32)
 endif()
 
 
-target_link_libraries(simple-opengl-client
+target_link_libraries(remote-imgui-client
     event_core
+    event
 )
 
 # Compiler options
 if(MSVC)
-    target_compile_options(simple-opengl-client PRIVATE /W4)
+    target_compile_options(remote-imgui-client PRIVATE /W4)
 else()
-    target_compile_options(simple-opengl-client PRIVATE -Wall -Wextra -Wformat)
+    target_compile_options(remote-imgui-client PRIVATE -Wall -Wextra -Wformat)
 endif()
 
 # Install
-install(TARGETS simple-opengl-client
+install(TARGETS remote-imgui-client
     RUNTIME DESTINATION bin
 )
 
