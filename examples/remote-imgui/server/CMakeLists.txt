@@ -10,7 +10,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # 包含目录
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/..
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../../imgui-ws/third-party/imgui/imgui
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../third-party/imgui/imgui
 )
 
 # ImGui 源文件
@@ -31,15 +31,6 @@ set(IMGUI_SOURCES
 
 # libevent is added at parent level to avoid duplicate targets
 
-# 简化服务器可执行文件（不依赖libevent）
-add_executable(simple-imgui-server
-    simple_server.cpp
-    ../serializer.cpp
-    ../serializer.h
-    ${IMGUI_SOURCES}
-)
-
-# 原始服务器可执行文件（需要libevent修复）
 add_executable(remote-imgui-server
     main.cpp
     ../serializer.cpp
