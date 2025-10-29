@@ -55,8 +55,8 @@ private:
 
     // Rendering
     void renderFrame();
-    void renderImGui();
-    void integrateRemoteFrameData(ImDrawData* draw_data, const FrameData* frame_data);
+    void renderLocalUI();
+    void renderRemoteFrameOnly();
 
     // Members
     GLFWwindow* window_ = nullptr;
@@ -315,50 +315,36 @@ void SimpleOpenGLClient::renderFrame() {
         return;
     }
 
-    // Start the Dear ImGui frame
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-
-    // Render ImGui (either remote or local UI)
-    renderImGui();
-
-    // Rendering
-    ImGui::Render();
-    ImDrawData* draw_data = ImGui::GetDrawData();
-
-    // If we have remote frame data, integrate it into the draw data
-    if (deserializer_.hasValidFrame()) {
-        const FrameData* frame_data = deserializer_.getFrameData();
-        if (frame_data) {
-            integrateRemoteFrameData(draw_data, frame_data);
-        }
-    }
-
-
-
-
+    // Clear and setup viewport
     int display_w, display_h;
     glfwGetFramebufferSize(window_, &display_w, &display_h);
     glViewport(0, 0, display_w, display_h);
     glClearColor(clear_color_.x * clear_color_.w, clear_color_.y * clear_color_.w, clear_color_.z * clear_color_.w, clear_color_.w);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    if (draw_data != nullptr) {
-      ImGui_ImplOpenGL3_RenderDrawData(draw_data);
+    // If we have remote frame data, render it directly
+    if (deserializer_.hasValidFrame()) {
+      renderRemoteFrameOnly();
     }
+    else {
+      // Only render local UI when no remote data
+      renderLocalUI();
+    }
+
 
     // Swap buffers
     glfwSwapBuffers(window_);
 }
 
-void SimpleOpenGLClient::renderImGui() {
+void SimpleOpenGLClient::renderLocalUI() {
+    // Start ImGui frame for local UI
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
     // Only show local UI (network settings) when no remote data
-    if (!deserializer_.hasValidFrame()) {
-        ImGui::Text("Waiting for data from server...");
-        ImGui::Text("Connect to a server to receive ImGui content");
-    }
-    // When we have remote data, local UI rendering will be handled in integrateRemoteFrameData
+    ImGui::Text("Waiting for data from server...");
+    ImGui::Text("Connect to a server to receive ImGui content");
 
     // Network settings window
     if (show_network_window_) {
@@ -401,6 +387,12 @@ void SimpleOpenGLClient::renderImGui() {
         ImGui::End();
     }
 
+    // Render local UI
+    ImGui::Render();
+    if (ImGui::GetDrawData() != nullptr) {
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    }
+
     // Increment frame counter
     frame_count_++;
 }
@@ -434,46 +426,36 @@ void SimpleOpenGLClient::run() {
     std::cout << "Remote ImGui client ended" << std::endl;
 }
 
-void SimpleOpenGLClient::integrateRemoteFrameData(ImDrawData* draw_data, const FrameData* frame_data) {
-    if (!draw_data || !frame_data || frame_data->header.cmd_lists_count == 0) {
+void SimpleOpenGLClient::renderRemoteFrameOnly() {
+    if (!deserializer_.hasValidFrame()) {
         return;
     }
 
-    // Update display size from server data
+    const FrameData* frame_data = deserializer_.getFrameData();
+    if (!frame_data || frame_data->header.cmd_lists_count == 0) {
+        return;
+    }
+
+    // Create a standalone ImDrawData structure from remote frame data
+    ImDrawData remote_draw_data;
+    remote_draw_data.Valid = true;
+    remote_draw_data.CmdListsCount = frame_data->header.cmd_lists_count;
+    remote_draw_data.CmdLists = nullptr;
+    remote_draw_data.TotalIdxCount = 0;
+    remote_draw_data.TotalVtxCount = 0;
+    remote_draw_data.DisplayPos = ImVec2(frame_data->header.display_pos[0], frame_data->header.display_pos[1]);
+    remote_draw_data.DisplaySize = ImVec2(frame_data->header.display_size[0], frame_data->header.display_size[1]);
+    remote_draw_data.FramebufferScale = ImVec2(frame_data->header.framebuffer_scale[0], frame_data->header.framebuffer_scale[1]);
+
+    // Update ImGui IO with server display settings
     ImGuiIO& io = ImGui::GetIO();
-    io.DisplaySize = ImVec2(frame_data->header.display_size[0], frame_data->header.display_size[1]);
-    io.DisplayFramebufferScale = ImVec2(frame_data->header.framebuffer_scale[0], frame_data->header.framebuffer_scale[1]);
+    io.DisplaySize = remote_draw_data.DisplaySize;
+    io.DisplayFramebufferScale = remote_draw_data.FramebufferScale;
 
-    // Set display position from server data
-    draw_data->DisplayPos = ImVec2(frame_data->header.display_pos[0], frame_data->header.display_pos[1]);
-    draw_data->DisplaySize = ImVec2(frame_data->header.display_size[0], frame_data->header.display_size[1]);
-    draw_data->FramebufferScale = ImVec2(frame_data->header.framebuffer_scale[0], frame_data->header.framebuffer_scale[1]);
+    // Allocate draw lists array
+    remote_draw_data.CmdLists = new ImDrawList*[frame_data->header.cmd_lists_count];
 
-    // Count total vertices and indices needed
-    size_t total_vtx = 0;
-    size_t total_idx = 0;
-    for (uint32_t i = 0; i < frame_data->header.cmd_lists_count; i++) {
-        if (i < frame_data->command_counts.size()) {
-            uint32_t cmd_count = frame_data->command_counts[i];
-            uint32_t command_offset = (i < frame_data->command_offsets.size()) ? frame_data->command_offsets[i] : 0;
-
-            for (uint32_t j = 0; j < cmd_count && command_offset + j < frame_data->draw_commands.size(); j++) {
-                total_idx += frame_data->draw_commands[command_offset + j].idx_count;
-            }
-        }
-    }
-    total_vtx = frame_data->vertex_buffers.size();
-
-    if (total_vtx == 0 || total_idx == 0) {
-        return;
-    }
-
-    // Allocate draw lists for remote content
-    int old_cmd_lists_count = draw_data->CmdListsCount;
-    draw_data->CmdListsCount += frame_data->header.cmd_lists_count;
-    draw_data->CmdLists = (ImDrawList**)realloc(draw_data->CmdLists, draw_data->CmdListsCount * sizeof(ImDrawList*));
-
-    // Create and populate each draw list from remote data
+    // Create draw lists from remote data
     size_t vertex_offset = 0;
     size_t index_offset = 0;
     size_t command_offset = 0;
@@ -493,43 +475,33 @@ void SimpleOpenGLClient::integrateRemoteFrameData(ImDrawData* draw_data, const F
         uint32_t cmd_count = (i < frame_data->command_counts.size()) ?
                            frame_data->command_counts[i] : 0;
 
-        // Count vertices and indices for this list
-        size_t list_vtx_count = 0;
-        size_t list_idx_count = 0;
-
-        for (uint32_t j = 0; j < cmd_count && command_offset + j < frame_data->draw_commands.size(); j++) {
-            const DrawCmd& cmd = frame_data->draw_commands[command_offset + j];
-            list_idx_count += cmd.idx_count;
-        }
-
-        // Determine vertex count range for this list
+        // Determine vertex and index count for this list
         size_t next_vertex_offset = (i + 1 < frame_data->vertex_offsets.size()) ?
                                   frame_data->vertex_offsets[i + 1] : frame_data->vertex_buffers.size();
         size_t next_index_offset = (i + 1 < frame_data->index_offsets.size()) ?
-                                  frame_data->index_offsets[i + 1] : frame_data->index_buffers.size();
+                                  frame_data->index_buffers[i + 1] : frame_data->index_buffers.size();
 
-        list_vtx_count = next_vertex_offset - vertex_offset;
-        list_idx_count = next_index_offset - index_offset;
+        size_t list_vtx_count = next_vertex_offset - vertex_offset;
+        size_t list_idx_count = next_index_offset - index_offset;
 
         if (list_vtx_count == 0 || list_idx_count == 0) {
+            remote_draw_data.CmdLists[i] = nullptr;
             continue;
         }
 
         // Create new draw list
         ImDrawList* new_list = new ImDrawList(ImGui::GetDrawListSharedData());
 
-        // Allocate buffers
-        new_list->IdxBuffer.resize(list_idx_count);
+        // Allocate and copy vertex buffer
         new_list->VtxBuffer.resize(list_vtx_count);
-
-        // Copy vertex data
         for (size_t v = 0; v < list_vtx_count; v++) {
             if (vertex_offset + v < frame_data->vertex_buffers.size()) {
                 new_list->VtxBuffer[v] = frame_data->vertex_buffers[vertex_offset + v];
             }
         }
 
-        // Copy index data (adjust indices to be relative to this list)
+        // Allocate and copy index buffer
+        new_list->IdxBuffer.resize(list_idx_count);
         for (size_t idx = 0; idx < list_idx_count; idx++) {
             if (index_offset + idx < frame_data->index_buffers.size()) {
                 new_list->IdxBuffer[idx] = frame_data->index_buffers[index_offset + idx];
@@ -549,21 +521,67 @@ void SimpleOpenGLClient::integrateRemoteFrameData(ImDrawData* draw_data, const F
                 dst_cmd.ClipRect.z = src_cmd.clip_rect[2] / 1000.0f;
                 dst_cmd.ClipRect.w = src_cmd.clip_rect[3] / 1000.0f;
                 dst_cmd.TextureId = (ImTextureID)(uintptr_t)src_cmd.texture_id;
+                dst_cmd.IdxOffset = 0;
+                dst_cmd.VtxOffset = 0;
 
-                // Set index offset for this command within the list
-                dst_cmd.IdxOffset = 0; // Will be calculated during rendering
-                dst_cmd.VtxOffset = 0; // Will be calculated during rendering
+                // Handle UserCallback restoration
+                if (src_cmd.user_callback != 0) {
+                    // For remote ImGui, we need to provide appropriate callbacks
+                    // Since we can't serialize function pointers, we'll provide standard callbacks
+                    if (src_cmd.user_callback == 1) {
+                        // This was a UserCallback - provide a default rendering callback
+                        dst_cmd.UserCallback = ImDrawCallback_ResetRenderState;
+
+                        // Allocate and copy user callback data
+                        if (src_cmd.user_callback_data_size > 0 && !src_cmd.user_callback_data.empty()) {
+                            // Allocate memory for callback data (will be freed by ImGui)
+                            void* callback_data = malloc(src_cmd.user_callback_data_size);
+                            if (callback_data) {
+                                memcpy(callback_data, src_cmd.user_callback_data.data(), src_cmd.user_callback_data_size);
+                                dst_cmd.UserCallbackData = callback_data;
+                            } else {
+                                dst_cmd.UserCallbackData = nullptr;
+                            }
+                        } else {
+                            dst_cmd.UserCallbackData = nullptr;
+                        }
+                    } else {
+                        dst_cmd.UserCallback = nullptr;
+                        dst_cmd.UserCallbackData = nullptr;
+                    }
+                } else {
+                    dst_cmd.UserCallback = nullptr;
+                    dst_cmd.UserCallbackData = nullptr;
+                }
             }
         }
 
-        // Add the new draw list to draw data
-        draw_data->CmdLists[old_cmd_lists_count + i] = new_list;
+        remote_draw_data.CmdLists[i] = new_list;
+        remote_draw_data.TotalVtxCount += list_vtx_count;
+        remote_draw_data.TotalIdxCount += list_idx_count;
     }
 
-    // Update total counts
-    draw_data->TotalVtxCount += total_vtx;
-    draw_data->TotalIdxCount += total_idx;
-    draw_data->Valid = true;
+    // Render the remote frame data directly
+    ImGui_ImplOpenGL3_RenderDrawData(&remote_draw_data);
+
+    // Clean up allocated draw lists and user callback data
+    for (int i = 0; i < remote_draw_data.CmdListsCount; i++) {
+        if (remote_draw_data.CmdLists[i]) {
+            // Free UserCallbackData memory
+            for (int cmd_idx = 0; cmd_idx < remote_draw_data.CmdLists[i]->CmdBuffer.Size; cmd_idx++) {
+                ImDrawCmd& cmd = remote_draw_data.CmdLists[i]->CmdBuffer[cmd_idx];
+                if (cmd.UserCallbackData) {
+                    free(cmd.UserCallbackData);
+                    cmd.UserCallbackData = nullptr;
+                }
+            }
+            delete remote_draw_data.CmdLists[i];
+        }
+    }
+    delete[] remote_draw_data.CmdLists;
+
+    // Increment frame counter
+    frame_count_++;
 }
 
 int main(int, char** argv) {

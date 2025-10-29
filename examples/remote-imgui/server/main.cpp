@@ -143,7 +143,7 @@ int main(int argc, char** argv) {
     bool running = true;
     static float f = 0.0f;
     static int counter = 0;
-    static bool show_demo_window = false;
+    static bool show_demo_window = true;
 
     while (running) {
         // Process network events

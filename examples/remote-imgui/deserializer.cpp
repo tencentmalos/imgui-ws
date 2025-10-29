@@ -157,12 +157,14 @@ bool ImDrawDataDeserializer::parseDrawLists(const std::vector<uint8_t>& data, si
 
         // Read draw commands
         for (uint32_t j = 0; j < list_header.cmd_count; j++) {
-            if (offset + sizeof(DrawCmd) > size) {
+            if (offset + sizeof(uint32_t) * 7 > size) { // Updated for new DrawCmd size
                 std::cerr << "Not enough data for draw command" << std::endl;
                 return false;
             }
 
             DrawCmd cmd;
+
+            // Read basic command data
             memcpy(&cmd.idx_count, &data[offset], sizeof(uint32_t));
             offset += sizeof(uint32_t);
 
@@ -171,6 +173,25 @@ bool ImDrawDataDeserializer::parseDrawLists(const std::vector<uint8_t>& data, si
 
             memcpy(&cmd.texture_id, &data[offset], sizeof(uint32_t));
             offset += sizeof(uint32_t);
+
+            // Read UserCallback related data
+            memcpy(&cmd.user_callback, &data[offset], sizeof(uint32_t));
+            offset += sizeof(uint32_t);
+
+            memcpy(&cmd.user_callback_data_size, &data[offset], sizeof(uint32_t));
+            offset += sizeof(uint32_t);
+
+            // Read user callback data if present
+            if (cmd.user_callback_data_size > 0) {
+                if (offset + cmd.user_callback_data_size > size) {
+                    std::cerr << "Not enough data for user callback data" << std::endl;
+                    return false;
+                }
+
+                cmd.user_callback_data.resize(cmd.user_callback_data_size);
+                memcpy(cmd.user_callback_data.data(), &data[offset], cmd.user_callback_data_size);
+                offset += cmd.user_callback_data_size;
+            }
 
             current_frame_->draw_commands.push_back(cmd);
         }

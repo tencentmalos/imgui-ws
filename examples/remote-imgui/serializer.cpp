@@ -92,12 +92,41 @@ void ImDrawDataSerializer::serializeDrawList(const ImDrawList* draw_list) {
         serialized_cmd.clip_rect[3] = static_cast<uint32_t>(cmd.ClipRect.w * 1000.0f);
         serialized_cmd.texture_id = reinterpret_cast<uintptr_t>(cmd.GetTexID());
 
+        // Handle UserCallback - note: we can't serialize function pointers directly
+        // For now, we'll store a null pointer and handle this in the future if needed
+        serialized_cmd.user_callback = 0;
+        serialized_cmd.user_callback_data_size = 0;
+
+        // Special handling for UserCallback commands
+        if (cmd.UserCallback != nullptr) {
+            // For now, we'll mark this as a special callback type
+            serialized_cmd.user_callback = 1; // Special marker for UserCallback
+
+            // Try to serialize some basic callback data if available
+            if (cmd.UserCallbackData != nullptr) {
+                // For basic rendering callbacks, the data might be simple
+                // We'll serialize up to 64 bytes of callback data
+                const uint8_t* callback_data = reinterpret_cast<const uint8_t*>(cmd.UserCallbackData);
+                size_t data_size = 64; // Fixed size for simplicity
+
+                serialized_cmd.user_callback_data_size = static_cast<uint32_t>(data_size);
+            }
+        }
+
         writeUint32(serialized_cmd.idx_count);
         writeUint32(serialized_cmd.clip_rect[0]);
         writeUint32(serialized_cmd.clip_rect[1]);
         writeUint32(serialized_cmd.clip_rect[2]);
         writeUint32(serialized_cmd.clip_rect[3]);
         writeUint32(serialized_cmd.texture_id);
+        writeUint32(serialized_cmd.user_callback);
+        writeUint32(serialized_cmd.user_callback_data_size);
+
+        // Write user callback data if present
+        if (serialized_cmd.user_callback_data_size > 0 && cmd.UserCallbackData != nullptr) {
+            const uint8_t* callback_data = reinterpret_cast<const uint8_t*>(cmd.UserCallbackData);
+            writeBytes(callback_data, serialized_cmd.user_callback_data_size);
+        }
     }
 }
 

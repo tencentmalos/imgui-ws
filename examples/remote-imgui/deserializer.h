@@ -26,6 +26,9 @@ struct DrawCmd {
     uint32_t idx_count;
     uint32_t clip_rect[4];
     uint32_t texture_id;
+    uint32_t user_callback;
+    uint32_t user_callback_data_size;
+    std::vector<uint8_t> user_callback_data;
 };
 
 // Simplified frame data structure

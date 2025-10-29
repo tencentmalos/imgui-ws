@@ -28,6 +28,9 @@ struct DrawCmd {
     uint32_t idx_count;      // Index count
     uint32_t clip_rect[4];   // Clipping rectangle x,y,z,w
     uint32_t texture_id;      // Texture ID
+    uint32_t user_callback;   // User callback function pointer (as uint32_t)
+    uint32_t user_callback_data_size; // Size of user callback data
+    // User callback data follows this structure in the stream
 };
 
 class ImDrawDataSerializer {
