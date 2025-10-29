@@ -1,7 +1,14 @@
 #include "network_client_impl.h"
 #include <iostream>
 #include <cstring>
-////#include <arpa/inet.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#endif
 
 NetworkClient::NetworkClient()
     : base_(nullptr)
@@ -71,9 +78,7 @@ bool NetworkClient::connect(const std::string& host, int port) {
 
     running_ = true;
 
-    // Start event loop thread
-    event_thread_ = std::make_unique<std::thread>(&NetworkClient::eventLoop, this);
-
+    // Don't start separate thread - we'll process events in main loop
     std::cout << "Connecting to " << host << ":" << port << std::endl;
     return true;
 }
@@ -95,11 +100,6 @@ void NetworkClient::disconnect() {
 
     // Cleanup
     cleanup();
-
-    // Wait for event thread to finish
-    if (event_thread_ && event_thread_->joinable()) {
-        event_thread_->join();
-    }
 }
 
 bool NetworkClient::send(const uint8_t* data, size_t size) {
@@ -118,9 +118,10 @@ std::string NetworkClient::getServerInfo() const {
     return "Not connected";
 }
 
-void NetworkClient::eventLoop() {
-    if (base_) {
-        event_base_dispatch(base_);
+void NetworkClient::processEvents() {
+    if (base_ && running_) {
+        // Non-blocking event processing
+        event_base_loop(base_, EVLOOP_NONBLOCK);
     }
 }
 

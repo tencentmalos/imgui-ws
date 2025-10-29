@@ -11,3 +11,4 @@ data/
 examples/remote-imgui/build_x64
 examples/remote-imgui/client/build_simple
 examples/remote-imgui/client/build_real
+.vs/*

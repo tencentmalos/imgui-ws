@@ -49,6 +49,9 @@ public:
     void setDisconnectCallback(ClientDisconnectCallback callback) { disconnect_callback_ = callback; }
     void setReceiveCallback(DataReceiveCallback callback) { receive_callback_ = callback; }
 
+    // Event loop integration
+    void processEvents();  // Non-blocking event processing
+
 private:
     struct ClientConnection {
         int client_id;
@@ -62,7 +65,6 @@ private:
     // Libevent components
     event_base* base_;
     evconnlistener* listener_;
-    std::unique_ptr<std::thread> event_thread_;
 
     // Server state
     std::atomic<bool> running_;
@@ -78,8 +80,6 @@ private:
     ClientDisconnectCallback disconnect_callback_;
     DataReceiveCallback receive_callback_;
 
-    // Event loop
-    void eventLoop();
 
     // Event callbacks
     static void acceptCallback(evconnlistener* listener, evutil_socket_t fd,

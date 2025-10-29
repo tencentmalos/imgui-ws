@@ -140,6 +140,9 @@ int main(int argc, char** argv) {
     static bool show_demo_window = false;
 
     while (running) {
+        // Process network events
+        g_server.network_server->processEvents();
+
         // Start new frame
         ImGui::NewFrame();
 
@@ -162,7 +165,7 @@ int main(int argc, char** argv) {
             ImGui::SameLine();
             ImGui::Text("counter = %d", counter);
 
-            
+
             if (ImGui::Button("Toggle Demo Window")) {
                 show_demo_window = !show_demo_window;
             }

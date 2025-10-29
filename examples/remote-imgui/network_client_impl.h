@@ -44,11 +44,12 @@ public:
     // Get connection info
     std::string getServerInfo() const;
 
+    // Event loop integration
+    void processEvents();  // Non-blocking event processing
 private:
     // Libevent components
     event_base* base_;
     bufferevent* bev_;
-    std::unique_ptr<std::thread> event_thread_;
 
     // Connection state
     std::atomic<bool> running_;
@@ -65,8 +66,7 @@ private:
     DisconnectCallback disconnect_callback_;
     DataReceiveCallback receive_callback_;
 
-    // Event loop
-    void eventLoop();
+
 
     // Event callbacks
     static void readCallback(bufferevent* bev, void* ctx);

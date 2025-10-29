@@ -1,8 +1,15 @@
 #include "network_server.h"
 #include <iostream>
 #include <cstring>
-////#include <arpa/inet.h>
 #include <mutex>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#endif
 
 NetworkServer::NetworkServer()
     : base_(nullptr)
@@ -49,9 +56,7 @@ bool NetworkServer::start(int port) {
 
     running_ = true;
 
-    // Start event loop thread
-    event_thread_ = std::make_unique<std::thread>(&NetworkServer::eventLoop, this);
-
+    // Events will be processed in main loop
     std::cout << "Network server started on port " << port << std::endl;
     return true;
 }
@@ -72,11 +77,6 @@ void NetworkServer::stop() {
     // Stop event loop
     if (base_) {
         event_base_loopbreak(base_);
-    }
-
-    // Wait for event thread to finish
-    if (event_thread_ && event_thread_->joinable()) {
-        event_thread_->join();
     }
 
     // Clean up event base
@@ -133,9 +133,10 @@ bool NetworkServer::broadcast(const uint8_t* data, size_t size) {
     return success;
 }
 
-void NetworkServer::eventLoop() {
-    if (base_) {
-        event_base_dispatch(base_);
+void NetworkServer::processEvents() {
+    if (base_ && running_) {
+        // Non-blocking event processing
+        event_base_loop(base_, EVLOOP_NONBLOCK);
     }
 }
 
@@ -169,10 +170,16 @@ void NetworkServer::handleNewConnection(evutil_socket_t fd, sockaddr* addr, int 
     }
 
     // Get client address
-    char client_ip[INET_ADDRSTRLEN];
     sockaddr_in* client_addr = (sockaddr_in*)addr;
+    std::string address;
+
+#ifdef _WIN32
+    address = std::string(inet_ntoa(client_addr->sin_addr)) + ":" + std::to_string(ntohs(client_addr->sin_port));
+#else
+    char client_ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(client_addr->sin_addr), client_ip, INET_ADDRSTRLEN);
-    std::string address = std::string(client_ip) + ":" + std::to_string(ntohs(client_addr->sin_port));
+    address = std::string(client_ip) + ":" + std::to_string(ntohs(client_addr->sin_port));
+#endif
 
     // Create client connection
     int client_id = next_client_id_++;

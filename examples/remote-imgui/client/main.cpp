@@ -88,6 +88,15 @@ static void glfw_error_callback(int error, const char* description) {
 SimpleOpenGLClient::SimpleOpenGLClient() {
     window_ = nullptr;
     glsl_version_ = nullptr;
+
+#ifdef _WIN32
+    // Initialize Winsock
+    WSADATA wsaData;
+    int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (result != 0) {
+        std::cerr << "WSAStartup failed with error code: " << result << std::endl;
+    }
+#endif
 }
 
 SimpleOpenGLClient::~SimpleOpenGLClient() {
@@ -225,6 +234,12 @@ void SimpleOpenGLClient::cleanup() {
     }
 
     glfwTerminate();
+
+#ifdef _WIN32
+    // Cleanup Winsock
+    WSACleanup();
+#endif
+
     std::cout << "OpenGL client cleaned up" << std::endl;
 }
 
@@ -358,6 +373,11 @@ void SimpleOpenGLClient::run() {
     while (!glfwWindowShouldClose(window_)) {
         // Poll and handle events
         glfwPollEvents();
+
+        // Process network events
+        if (network_client_) {
+            network_client_->processEvents();
+        }
 
         // Render frame
         renderFrame();
