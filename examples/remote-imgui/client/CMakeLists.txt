@@ -30,6 +30,9 @@ add_executable(remote-imgui-client
     ../deserializer.cpp
     ../network_client_impl.h
     ../network_client_impl.cpp
+    ../network_protocol.h
+    ../network_processor.h
+    ../network_processor.cpp
     ${IMGUI_SOURCES}
     ${BACKEND_SOURCES}
 )

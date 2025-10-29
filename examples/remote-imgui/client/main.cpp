@@ -20,6 +20,8 @@
 #include "imgui_impl_opengl3.h"
 #include "deserializer.h"
 #include "network_client_impl.h"
+#include "network_protocol.h"
+#include "network_processor.h"
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1900) && !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
 #pragma comment(lib, "legacy_stdio_definitions")
@@ -74,6 +76,9 @@ private:
     // Network client
     std::unique_ptr<NetworkClient> network_client_;
 
+    // Network processor for packet handling
+    std::unique_ptr<NetworkProcessor> network_processor_;
+
     // Window flags - only show remote content and network settings
     bool show_network_window_ = true;
 
@@ -127,6 +132,35 @@ bool SimpleOpenGLClient::initialize(int window_width, int window_height, const c
 bool SimpleOpenGLClient::connect(const std::string& server_ip, int port) {
     std::cout << "Connecting to " << server_ip << ":" << port << std::endl;
 
+    // Create network processor if not exists
+    if (!network_processor_) {
+        network_processor_ = std::make_unique<NetworkProcessor>();
+
+        // Set packet handler
+        network_processor_->setPacketHandler([this](ServiceType service_type, uint32_t service_cmd, const std::vector<uint8_t>& data) {
+            if (service_type == ServiceType::IMGUI_DATA &&
+                (service_cmd == static_cast<uint32_t>(ImGuiCommand::FRAME_DATA) ||
+                 service_cmd == static_cast<uint32_t>(ImGuiCommand::FRAME_PART))) {
+
+                // Process ImGui draw data
+                if (deserializer_.deserializePacket(data.data(), data.size())) {
+                    std::cout << "Received and deserialized ImGui frame data: " << data.size() << " bytes" << std::endl;
+
+                    // Store data for visualization
+                    received_data_.clear();
+                    received_data_.insert(received_data_.end(), data.begin(), data.end());
+                } else {
+                    std::cout << "Failed to deserialize ImGui frame data" << std::endl;
+                }
+            } else {
+                std::cout << "Received other service data: "
+                          << NetworkProtocol::getServiceTypeName(service_type) << " "
+                          << NetworkProtocol::getCommandName(service_type, service_cmd)
+                          << ", size: " << data.size() << " bytes" << std::endl;
+            }
+        });
+    }
+
     // Create network client if not exists
     if (!network_client_) {
         network_client_ = std::make_unique<NetworkClient>();
@@ -135,6 +169,14 @@ bool SimpleOpenGLClient::connect(const std::string& server_ip, int port) {
         network_client_->setConnectCallback([this](bool connected) {
             if (connected) {
                 std::cout << "Successfully connected to server" << std::endl;
+
+                ////// Send connect request
+                ////auto connect_packet = ImDrawDataSerializer::createNetworkPacket(
+                ////    ServiceType::IMGUI_DATA,
+                ////    static_cast<uint32_t>(ImGuiCommand::REQUEST_CONNECT),
+                ////    nullptr, 0
+                ////);
+                ////network_client_->send(connect_packet.data(), connect_packet.size());
             } else {
                 std::cout << "Failed to connect to server" << std::endl;
             }
@@ -142,18 +184,15 @@ bool SimpleOpenGLClient::connect(const std::string& server_ip, int port) {
 
         network_client_->setDisconnectCallback([this]() {
             std::cout << "Disconnected from server" << std::endl;
+            if (network_processor_) {
+                network_processor_->clear();
+            }
         });
 
         network_client_->setReceiveCallback([this](const uint8_t* data, size_t size) {
-            // Process received ImGui draw data
-            if (deserializer_.deserializePacket(data, size)) {
-                std::cout << "Received and deserialized " << size << " bytes of draw data" << std::endl;
-
-                // Store data for visualization
-                received_data_.clear();
-                received_data_.insert(received_data_.end(), data, data + size);
-            } else {
-                std::cout << "Failed to deserialize received data" << std::endl;
+            // Process incoming data through network processor
+            if (network_processor_) {
+                network_processor_->processIncomingData(data, size);
             }
         });
     }
@@ -224,6 +263,12 @@ void SimpleOpenGLClient::cleanup() {
         network_client_.reset();
     }
 
+    // Cleanup network processor
+    if (network_processor_) {
+        network_processor_->clear();
+        network_processor_.reset();
+    }
+
     if (window_) {
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
@@ -279,6 +324,7 @@ void SimpleOpenGLClient::renderFrame() {
     renderImGui();
 
     // Rendering
+    ImGui::Render();
     ImDrawData* draw_data = ImGui::GetDrawData();
 
     // If we have remote frame data, integrate it into the draw data
@@ -289,7 +335,9 @@ void SimpleOpenGLClient::renderFrame() {
         }
     }
 
-    ImGui::Render();
+
+
+
     int display_w, display_h;
     glfwGetFramebufferSize(window_, &display_w, &display_h);
     glViewport(0, 0, display_w, display_h);

@@ -1,10 +1,10 @@
 #include "deserializer.h"
 #include <cstring>
 #include <iostream>
-
+#include "network_protocol.h"
 // Same constants as serializer
 constexpr uint32_t FRAME_MAGIC = 0x494D4752; // "IMGR"
-constexpr uint32_t PROTOCOL_VERSION = 1;
+//constexpr uint32_t PROTOCOL_VERSION = 1;
 
 ImDrawDataDeserializer::ImDrawDataDeserializer() {
     current_frame_ = std::make_unique<FrameData>();

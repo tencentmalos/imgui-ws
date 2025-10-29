@@ -1,10 +1,11 @@
 #pragma once
 
 #include "imgui.h"
+#include "network_protocol.h"
 #include <vector>
 #include <cstdint>
 
-// Simplified binary serializer
+// Binary serializer with network protocol support
 // Reference: imgui-ws implementation, but simplified to avoid complex dependencies
 
 struct FrameHeader {
@@ -45,6 +46,18 @@ public:
 
     // Get current frame data size (bytes)
     size_t getDataSize() const;
+
+    // Get packetized data for network transmission
+    std::vector<std::vector<uint8_t>> getPacketizedData(uint32_t max_packet_size = MAX_PACKET_SIZE - HEADER_SIZE);
+
+    // Create network packet with header
+    static std::vector<uint8_t> createNetworkPacket(
+        ServiceType service_type,
+        uint32_t service_cmd,
+        const uint8_t* data,
+        size_t data_size,
+        uint32_t packet_id = 0
+    );
 
 private:
     std::vector<uint8_t> serialized_data_;

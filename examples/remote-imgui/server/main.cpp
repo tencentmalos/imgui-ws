@@ -2,6 +2,7 @@
 #include "protocol.h"
 #include "serializer.h"
 #include "network_server.h"
+#include "network_protocol.h"
 
 #include "common.h"
 
@@ -65,10 +66,15 @@ struct ServerInstance {
 
     void broadcastDrawData() {
         if (serializer && network_server && client_count.load() > 0) {
-            const auto& data = serializer->getSerializedData();
-            if (!data.empty()) {
-                network_server->broadcast(data.data(), data.size());
-                std::cout << "Broadcasted " << data.size() << " bytes to " << client_count.load() << " clients" << std::endl;
+            // Get packetized data
+            auto packets = serializer->getPacketizedData();
+            if (!packets.empty()) {
+                // Broadcast each packet
+                for (const auto& packet : packets) {
+                    network_server->broadcast(packet.data(), packet.size());
+                }
+                std::cout << "Broadcasted " << packets.size() << " packets to "
+                          << client_count.load() << " clients" << std::endl;
             }
         }
     }

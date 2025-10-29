@@ -1,10 +1,11 @@
 #include "serializer.h"
 #include <cstring>
 #include <iostream>
+#include <algorithm>
 
 // Magic and version constants
 constexpr uint32_t FRAME_MAGIC = 0x494D4752; // "IMGR"
-constexpr uint32_t PROTOCOL_VERSION = 1;
+//constexpr uint32_t PROTOCOL_VERSION = 1;
 
 ImDrawDataSerializer::ImDrawDataSerializer()
     : current_draw_data_(nullptr) {
@@ -123,4 +124,79 @@ void ImDrawDataSerializer::clear() {
 
 size_t ImDrawDataSerializer::getDataSize() const {
     return serialized_data_.size();
+}
+
+std::vector<std::vector<uint8_t>> ImDrawDataSerializer::getPacketizedData(uint32_t max_packet_size) {
+    std::vector<std::vector<uint8_t>> packets;
+
+    if (serialized_data_.empty()) {
+        return packets;
+    }
+
+    const uint8_t* data = serialized_data_.data();
+    size_t total_size = serialized_data_.size();
+    static uint32_t packet_counter = 0;
+
+    // Calculate how many packets we need
+    uint32_t num_packets = (total_size + max_packet_size - 1) / max_packet_size;
+
+    for (uint32_t i = 0; i < num_packets; i++) {
+        size_t offset = i * max_packet_size;
+        size_t packet_data_size = std::min<size_t>(max_packet_size, total_size - offset);
+
+        // Create packet
+        std::vector<uint8_t> packet = createNetworkPacket(
+            ServiceType::IMGUI_DATA,
+            static_cast<uint32_t>(num_packets > 1 ? ImGuiCommand::FRAME_PART : ImGuiCommand::FRAME_DATA),
+            data + offset,
+            packet_data_size,
+            packet_counter++
+        );
+
+        // Update header for multi-packet messages
+        if (num_packets > 1) {
+            NetworkHeader* header = reinterpret_cast<NetworkHeader*>(packet.data());
+            header->total_packets = num_packets;
+            header->current_packet = i;
+
+            // Recalculate checksum
+            header->checksum = NetworkProtocol::calculateChecksum(
+                reinterpret_cast<const uint8_t*>(header),
+                sizeof(*header) - sizeof(header->checksum)
+            );
+        }
+
+        packets.push_back(std::move(packet));
+    }
+
+    std::cout << "Packetized ImGui data: " << total_size << " bytes into "
+              << packets.size() << " packets" << std::endl;
+
+    return packets;
+}
+
+std::vector<uint8_t> ImDrawDataSerializer::createNetworkPacket(
+    ServiceType service_type,
+    uint32_t service_cmd,
+    const uint8_t* data,
+    size_t data_size,
+    uint32_t packet_id) {
+
+    // Create header
+    NetworkHeader header = NetworkProtocol::createHeader(
+        service_type, service_cmd, data_size, packet_id);
+
+    // Create packet
+    std::vector<uint8_t> packet;
+    packet.resize(HEADER_SIZE + data_size);
+
+    // Copy header
+    memcpy(packet.data(), &header, sizeof(header));
+
+    // Copy data
+    if (data && data_size > 0) {
+        memcpy(packet.data() + sizeof(header), data, data_size);
+    }
+
+    return packet;
 }
