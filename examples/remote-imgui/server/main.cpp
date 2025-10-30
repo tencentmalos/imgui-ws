@@ -1,10 +1,7 @@
 #include "imgui.h"
-#include "protocol.h"
 #include "serializer.h"
 #include "network_server.h"
-#include "network_protocol.h"
 
-#include "common.h"
 
 #include <iostream>
 #include <thread>
@@ -14,7 +11,7 @@
 
 // Global server instance
 struct ServerInstance {
-    std::unique_ptr<ImDrawDataSerializer> serializer;
+    std::unique_ptr<spatial::debugger::ImDrawDataSerializer> serializer;
     std::unique_ptr<NetworkServer> network_server;
     std::atomic<int> client_count{0};
 
@@ -36,7 +33,7 @@ struct ServerInstance {
 
     // Initialize server with networking
     bool initialize(int port) {
-        serializer = std::make_unique<ImDrawDataSerializer>();
+        serializer = std::make_unique<spatial::debugger::ImDrawDataSerializer>();
 
         // Create network server
         network_server = std::make_unique<NetworkServer>();
@@ -67,12 +64,10 @@ struct ServerInstance {
     void broadcastDrawData() {
         if (serializer && network_server && client_count.load() > 0) {
             // Get packetized data
-            auto packets = serializer->getPacketizedData();
-            if (!packets.empty()) {
-                // Broadcast each packet
-                for (const auto& packet : packets) {
-                    network_server->broadcast(packet.data(), packet.size());
-                }
+            auto packet = serializer->getPacketizedData();
+            
+            network_server->broadcast(packet.data(), packet.size());
+              
                 std::cout << "Broadcasted " << packets.size() << " packets to "
                           << client_count.load() << " clients" << std::endl;
             }

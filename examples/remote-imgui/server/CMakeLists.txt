@@ -13,14 +13,33 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../third-party/imgui/imgui
 )
 
+
+set(all_srcs "")
+
 # ImGui 源文件
-set(IMGUI_SOURCES
+set(imgui_src
     ../../../third-party/imgui/imgui/imgui.cpp
     ../../../third-party/imgui/imgui/imgui_demo.cpp
     ../../../third-party/imgui/imgui/imgui_draw.cpp
     ../../../third-party/imgui/imgui/imgui_tables.cpp
     ../../../third-party/imgui/imgui/imgui_widgets.cpp
 )
+source_group(\\imgui            FILES ${imgui_src})
+list(APPEND all_srcs ${imgui_src})
+
+file(GLOB server_src "*.*")
+source_group(\\                 FILES ${server_src})
+list(APPEND all_srcs ${server_src})         
+
+
+file(GLOB remote_debugger_src "../remote_debugger/*.*")
+source_group(\\remote_debugger  FILES ${remote_debugger_src})
+list(APPEND all_srcs ${remote_debugger_src})
+
+# file(GLOB data_packer_src "../data_packer/*.*")
+# source_group(\\data_packer      FILES ${data_packer_src})
+# list(APPEND all_srcs ${data_packer_src})
+
 
 # set(EVENT__DISABLE_SAMPLES ON CACHE BOOL "Disable libevent samples")
 # set(EVENT__DISABLE_TESTS ON CACHE BOOL "Disable libevent tests")
@@ -32,19 +51,7 @@ set(IMGUI_SOURCES
 # libevent is added at parent level to avoid duplicate targets
 
 add_executable(remote-imgui-server
-    main.cpp
-    ../serializer.cpp
-    ../protocol.h
-    ../serializer.h
-    ../common.h
-    ../network_server.h
-    ../network_server.cpp
-    ../network_client.h
-    ../network_client.cpp
-    ../network_protocol.h
-    ../deserializer.h
-    ../deserializer.cpp
-    ${IMGUI_SOURCES}
+    ${all_srcs}
 )
 
 # 链接库

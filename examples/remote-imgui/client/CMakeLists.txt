@@ -27,12 +27,9 @@ set(BACKEND_SOURCES
 # Create simple OpenGL client executable
 add_executable(remote-imgui-client
     main.cpp
-    ../deserializer.cpp
-    ../network_client_impl.h
-    ../network_client_impl.cpp
-    ../network_protocol.h
-    ../network_processor.h
-    ../network_processor.cpp
+    deserializer.cpp
+    network_client.h
+    network_client.cpp
     ${IMGUI_SOURCES}
     ${BACKEND_SOURCES}
 )

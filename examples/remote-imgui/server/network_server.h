@@ -12,6 +12,8 @@
 #include <event2/bufferevent.h>
 #include <event2/buffer.h>
 
+#include "../remote_debugger/net_packet_buffer.hpp"
+
 // Forward declarations
 struct evconnlistener;
 struct event_base;
@@ -43,6 +45,7 @@ public:
 
     // Broadcast data to all connected clients
     bool broadcast(const uint8_t* data, size_t size);
+    bool broadcast(const spatial::debugger::NetPacketBuffer& packet);
 
     // Set callbacks
     void setConnectCallback(ClientConnectCallback callback) { connect_callback_ = callback; }
