@@ -2,7 +2,10 @@
 
 #include <cstdint>
 #include <vector>
-#include "imgui.h"
+
+// Forward declaration - ImGui headers will be provided by including projects
+struct ImDrawVert;
+using ImDrawIdx = unsigned short;
 
 namespace spatial::debugger {
 

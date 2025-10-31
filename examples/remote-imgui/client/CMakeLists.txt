@@ -36,13 +36,7 @@ source_group(\\imgui\\backend   FILES ${imgui_backend_srcs})
 list(APPEND all_srcs ${imgui_backend_srcs})
 
 
-file(GLOB remote_debugger_src "../remote_debugger/*.*")
-source_group(\\remote_debugger  FILES ${remote_debugger_src})
-list(APPEND all_srcs ${remote_debugger_src})
-
-file(GLOB remote_debugger_imgui_src "../remote_debugger/imgui/*.*")
-source_group(\\remote_debugger\\imgui  FILES ${remote_debugger_imgui_src})
-list(APPEND all_srcs ${remote_debugger_imgui_src})
+# Note: remote_debugger is now built as a static library, no need to include sources directly
 
 # Create simple OpenGL client executable
 add_executable(remote-imgui-client
@@ -54,11 +48,15 @@ add_executable(remote-imgui-client
 target_include_directories(remote-imgui-client PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..
-    ../../../third-party/imgui
     ${IMGUI_PATH}
     ${IMGUI_PATH}/backends
     ../../../third-party/
     ../../../third-party/imgui/imgui/examples/libs/glfw/include
+)
+
+# Make ImGui headers available to remote_debugger library
+target_include_directories(remote-imgui-client PUBLIC
+    ${IMGUI_PATH}
 )
 
 # Windows specific libraries and settings
@@ -81,6 +79,7 @@ endif()
 
 
 target_link_libraries(remote-imgui-client
+    remote_debugger
     event_core
     event
 )

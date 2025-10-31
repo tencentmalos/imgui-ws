@@ -1,8 +1,10 @@
-#include "deserializer.h"
+// Include ImGui headers first to resolve type definitions
+#include "imgui.h"
+
+#include "net_imgui_deserializer.hpp"
 
 #include <cstring>
 #include <iostream>
-////#include "network_protocol.h"
 
 namespace spatial::debugger {
 
@@ -71,15 +73,17 @@ bool ImDrawDataDeserializer::parseFrameHeader(const std::vector<uint8_t>& data,
   offset += sizeof(uint32_t);
 
   // Validate magic number and version
-  ////if (current_frame_->header.magic != FRAME_MAGIC) {
-  ////    std::cerr << "Invalid magic number: 0x" << std::hex <<
-  /// current_frame_->header.magic << std::endl; /    return false;
-  ////}
+  if (current_frame_->header.magic != IMGUI_FRAME_MAGIC) {
+    std::cerr << "Invalid magic number: 0x" << std::hex
+              << current_frame_->header.magic << std::endl;
+    return false;
+  }
 
-  ////if (current_frame_->header.version != PROTOCOL_VERSION) {
-  ////    std::cerr << "Unsupported protocol version: " <<
-  /// current_frame_->header.version << std::endl; /    return false;
-  ////}
+  if (current_frame_->header.version != IMGUI_PROTOCOL_VERSION) {
+    std::cerr << "Unsupported protocol version: "
+              << current_frame_->header.version << std::endl;
+    return false;
+  }
 
   // Read display information
   memcpy(&current_frame_->header.display_pos[0], &data[offset],
@@ -224,26 +228,24 @@ void ImDrawDataDeserializer::clear() {
 bool ImDrawDataDeserializer::hasValidFrame() const {
   if (!current_frame_) return false;
 
-  ////return (current_frame_->header.magic == FRAME_MAGIC &&
-  ////        current_frame_->header.version == PROTOCOL_VERSION &&
-  ////        current_frame_->header.cmd_lists_count > 0);
-
-  return (current_frame_->header.cmd_lists_count > 0);
+  return (current_frame_->header.magic == IMGUI_FRAME_MAGIC &&
+          current_frame_->header.version == IMGUI_PROTOCOL_VERSION &&
+          current_frame_->header.cmd_lists_count > 0);
 }
 
 bool ImDrawDataDeserializer::validateData() const {
   if (!current_frame_) return false;
 
   // Basic validation
-  ////if (current_frame_->header.magic != FRAME_MAGIC) {
-  ////    std::cerr << "Invalid magic number" << std::endl;
-  ////    return false;
-  ////}
+  if (current_frame_->header.magic != IMGUI_FRAME_MAGIC) {
+    std::cerr << "Invalid magic number" << std::endl;
+    return false;
+  }
 
-  ////if (current_frame_->header.version != PROTOCOL_VERSION) {
-  ////    std::cerr << "Invalid protocol version" << std::endl;
-  ////    return false;
-  ////}
+  if (current_frame_->header.version != IMGUI_PROTOCOL_VERSION) {
+    std::cerr << "Invalid protocol version" << std::endl;
+    return false;
+  }
 
   // Validate draw list count matches actual data
   if (current_frame_->command_counts.size() !=

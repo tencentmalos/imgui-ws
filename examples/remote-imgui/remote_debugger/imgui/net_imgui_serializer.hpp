@@ -1,11 +1,14 @@
 #pragma once
 
-#include "imgui.h"
+#include "../net_packet_buffer.hpp"
+#include "net_imgui_define.hpp"
 #include <vector>
 #include <cstdint>
 
-#include "../remote_debugger/net_packet_buffer.hpp"
-
+// Forward declarations - ImGui headers will be provided by including projects
+struct ImDrawData;
+struct ImDrawList;
+struct ImDrawCmd;
 
 namespace spatial::debugger {
 
@@ -32,6 +35,7 @@ class ImDrawDataSerializer {
 
   // Get packetized data for network transmission
   NetPacketBuffer getPacketizedData();
+
  private:
   std::vector<uint8_t> serialized_data_;
   ImDrawData* current_draw_data_;

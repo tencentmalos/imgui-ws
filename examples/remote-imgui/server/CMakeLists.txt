@@ -32,13 +32,7 @@ set(imgui_src
 source_group(\\imgui            FILES ${imgui_src})
 list(APPEND all_srcs ${imgui_src})
 
-file(GLOB remote_debugger_src "../remote_debugger/*.*")
-source_group(\\remote_debugger  FILES ${remote_debugger_src})
-list(APPEND all_srcs ${remote_debugger_src})
-
-file(GLOB remote_debugger_imgui_src "../remote_debugger/imgui/*.*")
-source_group(\\remote_debugger\\imgui  FILES ${remote_debugger_imgui_src})
-list(APPEND all_srcs ${remote_debugger_imgui_src})
+# Note: remote_debugger is now built as a static library, no need to include sources directly
 
 # file(GLOB data_packer_src "../data_packer/*.*")
 # source_group(\\data_packer      FILES ${data_packer_src})
@@ -58,8 +52,14 @@ add_executable(remote-imgui-server
     ${all_srcs}
 )
 
+# Make ImGui headers available to remote_debugger library
+target_include_directories(remote-imgui-server PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../third-party/imgui/imgui
+)
+
 # 链接库
 target_link_libraries(remote-imgui-server
+    remote_debugger
     event_core
     event
     # event_extra  # libevent extra libraries for networking

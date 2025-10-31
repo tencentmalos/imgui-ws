@@ -18,11 +18,11 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
-#include "deserializer.h"
+
+// Include remote_debugger after ImGui to ensure all types are properly defined
 #include "network_client.h"
-#include "../remote_debugger/net_packet_dispatcher.hpp"
-////#include "network_protocol.h"
-////#include "network_processor.h"
+#include "remote_debugger.hpp"
+// Using the remote_debugger library which includes all necessary components
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1900) && !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
 #pragma comment(lib, "legacy_stdio_definitions")

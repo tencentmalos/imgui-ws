@@ -11,31 +11,52 @@ namespace spatial::debugger {
 
 // Network data processor for handling packet fragmentation and reassembly
 class NetPacketDispatcher {
- public:
-  // Packet handler callback
-  using PacketHandler =
-      std::function<void(NetServiceType service_type, uint16_t service_cmd, const NetPacketBuffer& packet)>;
+private:
+    //Nested Types
+    enum MessageHandleStatus
+    {
+        ReadHead = 0,
+        ReadBody = 1,
+        Dispatcher = 2,
+    };
+public:
+    // Packet handler callback
+    using PacketHandler = std::function<void(NetServiceType service_type, uint16_t service_cmd,
+                                             const NetPacketBuffer& packet)>;
 
-  NetPacketDispatcher();
-  ~NetPacketDispatcher() = default;
+    NetPacketDispatcher();
+    ~NetPacketDispatcher() = default;
 
-  bool TryReadHeaderFromRawData(const uint8_t* data, size_t size, NetPacketHeader& fillHeader);
 
-  // Process incoming data
-  void ProcessIncomingPacket(const NetPacketBuffer& packet);
 
-  // Set packet handler callback
-  void BindServicePacketHandler(NetServiceType service_type, PacketHandler handler) {
-    assert((uint32_t)service_type < kNetMaxServiceNums && "service type may not over the max limit here!");
-    service_handler_array_[(int)service_type] = handler;
-  }
+
+    // Set packet handler callback
+    void BindServicePacketHandler(NetServiceType service_type, PacketHandler handler) {
+        assert((uint32_t) service_type < kNetMaxServiceNums &&
+               "service type may not over the max limit here!");
+        service_handler_array_[(int) service_type] = handler;
+    }
+
+    void AppendIncommingData(const uint8_t* data, size_t size);
 protected:
-  // Packet handler callback
-  PacketHandler service_handler_array_[kNetMaxServiceNums];
+    bool TryReadHeaderFromRawData(const uint8_t* data, size_t size, NetPacketHeader& fillHeader);
 
-  // Statistics
-  uint64_t total_packets_received_ = 0;
-  uint64_t total_bytes_received_ = 0;
+    // Process incoming data
+    void DispatchOnePacket(const NetPacketBuffer& packet);
+
+    bool HandleMessageByStatus();
+protected:
+    // Packet handler callback
+    PacketHandler service_handler_array_[kNetMaxServiceNums];
+
+    // Statistics
+    uint64_t total_packets_received_ = 0;
+    uint64_t total_bytes_received_ = 0;
+
+    std::vector<uint8_t> incoming_data_buffer_;
+    MessageHandleStatus current_message_status_ = MessageHandleStatus::ReadHead;
+    NetPacketHeader     cached_header_;
+    NetPacketBuffer     cached_packet_;
 };
 
-}  // namespace spatial::debugger
+}// namespace spatial::debugger

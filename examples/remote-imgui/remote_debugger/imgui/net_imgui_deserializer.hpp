@@ -4,8 +4,11 @@
 #include <memory>
 #include <vector>
 
-#include "../remote_debugger/imgui/net_imgui_define.hpp"
-#include "imgui.h"
+#include "net_imgui_define.hpp"
+
+// Forward declarations - ImGui headers will be provided by including projects
+struct ImDrawVert;
+using ImDrawIdx = unsigned short;
 
 namespace spatial::debugger {
 

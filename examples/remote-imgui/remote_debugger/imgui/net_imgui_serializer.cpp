@@ -1,11 +1,13 @@
-#include "serializer.h"
+// Include ImGui headers first to resolve type definitions
+#include "imgui.h"
+
+#include "net_imgui_serializer.hpp"
 
 #include <algorithm>
 #include <cstring>
 #include <iostream>
 
-#include "../remote_debugger/net_packet_encoder.hpp"
-#include "../remote_debugger/imgui/net_imgui_define.hpp"
+#include "../net_packet_encoder.hpp"
 
 namespace spatial::debugger {
 
