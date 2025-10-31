@@ -13,31 +13,6 @@ namespace spatial::debugger {
 // Reference: imgui-ws implementation, but simplified to avoid complex
 // dependencies
 
-struct FrameHeader {
-  uint32_t magic;              // Magic number for validation
-  uint32_t version;            // Protocol version
-  uint32_t total_size;         // Total frame data size
-  uint32_t cmd_lists_count;    // Number of draw lists
-  float display_pos[2];        // Display position
-  float display_size[2];       // Display size
-  float framebuffer_scale[2];  // Framebuffer scale
-};
-
-struct DrawListHeader {
-  uint32_t vtx_buffer_size;  // Vertex buffer size
-  uint32_t idx_buffer_size;  // Index buffer size
-  uint32_t cmd_count;        // Command count
-};
-
-struct DrawCmd {
-  uint32_t idx_count;      // Index count
-  uint32_t clip_rect[4];   // Clipping rectangle x,y,z,w
-  uint32_t texture_id;     // Texture ID
-  uint32_t user_callback;  // User callback function pointer (as uint32_t)
-  uint32_t user_callback_data_size;  // Size of user callback data
-  // User callback data follows this structure in the stream
-};
-
 class ImDrawDataSerializer {
  public:
   ImDrawDataSerializer();

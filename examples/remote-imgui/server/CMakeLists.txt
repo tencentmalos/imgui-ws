@@ -16,6 +16,11 @@ include_directories(
 
 set(all_srcs "")
 
+file(GLOB top_src "*.*")
+source_group(\\                 FILES ${top_src})
+list(APPEND all_srcs ${top_src})     
+
+
 # ImGui 源文件
 set(imgui_src
     ../../../third-party/imgui/imgui/imgui.cpp
@@ -27,14 +32,13 @@ set(imgui_src
 source_group(\\imgui            FILES ${imgui_src})
 list(APPEND all_srcs ${imgui_src})
 
-file(GLOB server_src "*.*")
-source_group(\\                 FILES ${server_src})
-list(APPEND all_srcs ${server_src})         
-
-
 file(GLOB remote_debugger_src "../remote_debugger/*.*")
 source_group(\\remote_debugger  FILES ${remote_debugger_src})
 list(APPEND all_srcs ${remote_debugger_src})
+
+file(GLOB remote_debugger_imgui_src "../remote_debugger/imgui/*.*")
+source_group(\\remote_debugger\\imgui  FILES ${remote_debugger_imgui_src})
+list(APPEND all_srcs ${remote_debugger_imgui_src})
 
 # file(GLOB data_packer_src "../data_packer/*.*")
 # source_group(\\data_packer      FILES ${data_packer_src})

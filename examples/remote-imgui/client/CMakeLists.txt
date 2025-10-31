@@ -9,31 +9,45 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 set(IMGUI_PATH "../../../third-party/imgui/imgui")
 
+set(all_srcs "")
+
+file(GLOB top_src "*.*")
+source_group(\\                 FILES ${top_src})
+list(APPEND all_srcs ${top_src})         
+
+
 # ImGui source files (directly include)
-set(IMGUI_SOURCES
+set(imgui_src
     ${IMGUI_PATH}/imgui.cpp
     ${IMGUI_PATH}/imgui_demo.cpp
     ${IMGUI_PATH}/imgui_draw.cpp
     ${IMGUI_PATH}/imgui_tables.cpp
     ${IMGUI_PATH}/imgui_widgets.cpp
 )
+source_group(\\imgui            FILES ${imgui_src})
+list(APPEND all_srcs ${imgui_src})
 
 # Backend sources
-set(BACKEND_SOURCES
+set(imgui_backend_srcs
     ${IMGUI_PATH}/backends/imgui_impl_glfw.cpp
     ${IMGUI_PATH}/backends/imgui_impl_opengl3.cpp
 )
+source_group(\\imgui\\backend   FILES ${imgui_backend_srcs})
+list(APPEND all_srcs ${imgui_backend_srcs})
+
+
+file(GLOB remote_debugger_src "../remote_debugger/*.*")
+source_group(\\remote_debugger  FILES ${remote_debugger_src})
+list(APPEND all_srcs ${remote_debugger_src})
+
+file(GLOB remote_debugger_imgui_src "../remote_debugger/imgui/*.*")
+source_group(\\remote_debugger\\imgui  FILES ${remote_debugger_imgui_src})
+list(APPEND all_srcs ${remote_debugger_imgui_src})
 
 # Create simple OpenGL client executable
 add_executable(remote-imgui-client
-    main.cpp
-    deserializer.cpp
-    network_client.h
-    network_client.cpp
-    ${IMGUI_SOURCES}
-    ${BACKEND_SOURCES}
+    ${all_srcs}
 )
-
 
 
 # Include directories

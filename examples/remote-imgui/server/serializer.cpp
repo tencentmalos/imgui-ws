@@ -5,13 +5,9 @@
 #include <iostream>
 
 #include "../remote_debugger/net_packet_encoder.hpp"
-#include "net_imgui_define.hpp"
+#include "../remote_debugger/imgui/net_imgui_define.hpp"
 
 namespace spatial::debugger {
-
-// Magic and version constants
-constexpr uint32_t IMGUI_FRAME_MAGIC = 0x494D4752;  // "IMGR"
-constexpr uint32_t IMGUI_PROTOCOL_VERSION = 1;
 
 ImDrawDataSerializer::ImDrawDataSerializer() : current_draw_data_(nullptr) {
   serialized_data_.reserve(1024 * 1024);  // Pre-allocate 1MB
@@ -49,8 +45,8 @@ void ImDrawDataSerializer::setDrawData(ImDrawData* draw_data) {
 
 void ImDrawDataSerializer::serializeHeader(const ImDrawData* draw_data) {
   // Write frame header
-  writeUint32(IMGUI_FRAME_MAGIC);
-  writeUint32(IMGUI_PROTOCOL_VERSION);
+  writeUint32(IMGUI_FRAME_MAGIC);       //magic
+  writeUint32(IMGUI_PROTOCOL_VERSION);       //version
   writeUint32(0);  // total_size, will be updated later
   writeUint32(draw_data->CmdListsCount);
 

@@ -19,9 +19,10 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "deserializer.h"
-#include "network_client_impl.h"
-#include "network_protocol.h"
-#include "network_processor.h"
+#include "network_client.h"
+#include "../remote_debugger/net_packet_dispatcher.hpp"
+////#include "network_protocol.h"
+////#include "network_processor.h"
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1900) && !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
 #pragma comment(lib, "legacy_stdio_definitions")
@@ -71,13 +72,13 @@ private:
 
     // Data reception
     std::vector<uint8_t> received_data_;
-    ImDrawDataDeserializer deserializer_;
+    spatial::debugger::ImDrawDataDeserializer deserializer_;
 
     // Network client
     std::unique_ptr<NetworkClient> network_client_;
 
     // Network processor for packet handling
-    std::unique_ptr<NetworkProcessor> network_processor_;
+    std::unique_ptr<spatial::debugger::NetPacketDispatcher> network_processor_;
 
     // Window flags - only show remote content and network settings
     bool show_network_window_ = true;
@@ -134,13 +135,14 @@ bool SimpleOpenGLClient::connect(const std::string& server_ip, int port) {
 
     // Create network processor if not exists
     if (!network_processor_) {
-        network_processor_ = std::make_unique<NetworkProcessor>();
+      network_processor_ =
+          std::make_unique<spatial::debugger::NetPacketDispatcher>();
 
         // Set packet handler
-        network_processor_->setPacketHandler([this](ServiceType service_type, uint32_t service_cmd, const std::vector<uint8_t>& data) {
-            if (service_type == ServiceType::IMGUI_DATA &&
-                (service_cmd == static_cast<uint32_t>(ImGuiCommand::FRAME_DATA) ||
-                 service_cmd == static_cast<uint32_t>(ImGuiCommand::FRAME_PART))) {
+      network_processor_->BindServicePacketHandler(spatial::debugger::NetServiceType::RemoteImgui,
+          [this](spatial::debugger::NetServiceType service_type,
+                 uint16_t service_cmd, const spatial::debugger::NetPacketBuffer& packet) {
+            if (service_cmd == static_cast<uint32_t>(spatial::debugger::ImGuiCommand::FrameData)) {
 
                 // Process ImGui draw data
                 if (deserializer_.deserializePacket(data.data(), data.size())) {
