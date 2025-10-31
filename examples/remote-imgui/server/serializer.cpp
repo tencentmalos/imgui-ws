@@ -181,26 +181,4 @@ NetPacketBuffer ImDrawDataSerializer::getPacketizedData() {
   return packet;
 }
 
-std::vector<uint8_t> ImDrawDataSerializer::createNetworkPacket(
-    ServiceType service_type, uint32_t service_cmd, const uint8_t* data,
-    size_t data_size, uint32_t packet_id) {
-  // Create header
-  NetworkHeader header = NetworkProtocol::createHeader(
-      service_type, service_cmd, data_size, packet_id);
-
-  // Create packet
-  std::vector<uint8_t> packet;
-  packet.resize(HEADER_SIZE + data_size);
-
-  // Copy header
-  memcpy(packet.data(), &header, sizeof(header));
-
-  // Copy data
-  if (data && data_size > 0) {
-    memcpy(packet.data() + sizeof(header), data, data_size);
-  }
-
-  return packet;
-}
-
 }  // namespace spatial::debugger

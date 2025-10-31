@@ -65,12 +65,10 @@ struct ServerInstance {
         if (serializer && network_server && client_count.load() > 0) {
             // Get packetized data
             auto packet = serializer->getPacketizedData();
-            
-            network_server->broadcast(packet.data(), packet.size());
+            network_server->broadcast(packet);
               
-                std::cout << "Broadcasted " << packets.size() << " packets to "
-                          << client_count.load() << " clients" << std::endl;
-            }
+            std::cout << "Broadcasted " << packet.TotalSize() << " packets to "
+                        << client_count.load() << " clients" << std::endl;
         }
     }
 
