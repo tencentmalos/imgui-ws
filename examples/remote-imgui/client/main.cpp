@@ -334,7 +334,16 @@ void SimpleOpenGLClient::setupImGui() {
     // Load Fonts
     io.Fonts->AddFontDefault();
 
+    // Build font atlas to get texture ID
+    unsigned char* pixels;
+    int width, height;
+    io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
+
+    // Set a placeholder texture ID initially
+    io.Fonts->SetTexID(reinterpret_cast<ImTextureID>(static_cast<uintptr_t>(0)));
+
     std::cout << "ImGui setup completed with OpenGL3 backend" << std::endl;
+    std::cout << "Font atlas size: " << width << "x" << height << std::endl;
 }
 
 void SimpleOpenGLClient::renderFrame() {
@@ -552,6 +561,13 @@ void SimpleOpenGLClient::renderRemoteFrameOnly() {
                 // Map texture IDs: if it's the default font texture (ID 1), use our client font texture
                 if (src_cmd.texture_id == 1) {
                     dst_cmd.TextureId = reinterpret_cast<ImTextureID>(static_cast<uintptr_t>(font_texture_id_));
+                    // Debug: Only log the first font texture mapping to avoid spam
+                    static bool font_texture_logged = false;
+                    if (!font_texture_logged) {
+                        std::cout << "Mapped server font texture ID " << src_cmd.texture_id
+                                  << " to client texture ID " << font_texture_id_ << std::endl;
+                        font_texture_logged = true;
+                    }
                 } else {
                     dst_cmd.TextureId = (ImTextureID)(uintptr_t)src_cmd.texture_id;
                 }
@@ -595,6 +611,19 @@ void SimpleOpenGLClient::renderRemoteFrameOnly() {
         remote_draw_data.TotalIdxCount += list_idx_count;
     }
 
+    // Debug: Print texture binding information before rendering
+    std::cout << "Rendering remote frame data with " << remote_draw_data.CmdListsCount << " draw lists" << std::endl;
+    if (font_texture_id_ != 0) {
+        std::cout << "Font texture ID available: " << font_texture_id_ << std::endl;
+
+        // Ensure font texture is bound properly
+        glBindTexture(GL_TEXTURE_2D, font_texture_id_);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    } else {
+        std::cout << "Warning: No font texture available!" << std::endl;
+    }
+
     // Render the remote frame data directly
     ImGui_ImplOpenGL3_RenderDrawData(&remote_draw_data);
 
@@ -620,10 +649,18 @@ void SimpleOpenGLClient::renderRemoteFrameOnly() {
 
 void SimpleOpenGLClient::updateFontTexture(const uint8_t* font_data, int width, int height) {
     if (font_data == nullptr || width <= 0 || height <= 0) {
+        std::cerr << "Invalid font texture data: " << (void*)font_data << ", " << width << "x" << height << std::endl;
         return;
     }
 
     std::cout << "Updating font texture: " << width << "x" << height << std::endl;
+
+    // Debug: Check first few pixels to verify data integrity
+    std::cout << "Received first few pixel values: ";
+    for (int i = 0; i < std::min(16, width * height); i++) {
+        printf("%02X ", font_data[i]);
+    }
+    std::cout << std::endl;
 
     // Generate or update font texture
     if (font_texture_id_ == 0) {
@@ -639,16 +676,67 @@ void SimpleOpenGLClient::updateFontTexture(const uint8_t* font_data, int width, 
 
     // Upload font data (Alpha8 format)
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    // Check for OpenGL errors before texture upload
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cerr << "OpenGL error before texture upload: " << err << std::endl;
+    }
+
     glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA8, width, height, 0, GL_ALPHA, GL_UNSIGNED_BYTE, font_data);
 
-    // Update ImGui's font atlas texture ID
+    // Check for OpenGL errors after texture upload
+    err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cerr << "OpenGL error during texture upload: " << err << std::endl;
+    } else {
+        std::cout << "Texture uploaded successfully" << std::endl;
+    }
+
+    // Update ImGui's font atlas texture ID without rebuilding the atlas
     ImGuiIO& io = ImGui::GetIO();
     io.Fonts->SetTexID(reinterpret_cast<ImTextureID>(static_cast<uintptr_t>(font_texture_id_)));
 
-    // Force ImGui to rebuild font atlas with new texture
-    io.Fonts->Clear();
-    io.Fonts->AddFontDefault();
-    io.Fonts->Build();
+    // Verify OpenGL texture was created successfully
+    GLint current_texture;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &current_texture);
+    std::cout << "Updated ImGui font atlas texture ID to: " << font_texture_id_
+              << ", current bound texture: " << current_texture << std::endl;
+
+    // Make sure our texture is bound
+    if (current_texture != static_cast<GLint>(font_texture_id_)) {
+        glBindTexture(GL_TEXTURE_2D, font_texture_id_);
+        std::cout << "Re-bound font texture " << font_texture_id_ << std::endl;
+    }
+
+    // Verify texture was uploaded correctly by reading back a small sample
+    std::vector<unsigned char> read_back_data(width * height);
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_ALPHA, GL_UNSIGNED_BYTE, read_back_data.data());
+
+    // Compare first few pixels
+    bool data_matches = true;
+    for (int i = 0; i < std::min(16, width * height); i++) {
+        if (read_back_data[i] != font_data[i]) {
+            data_matches = false;
+            break;
+        }
+    }
+
+    if (data_matches) {
+        std::cout << "Texture data verification: PASSED" << std::endl;
+    } else {
+        std::cout << "Texture data verification: FAILED - data mismatch" << std::endl;
+        std::cout << "Expected first few values: ";
+        for (int i = 0; i < std::min(8, width * height); i++) {
+            printf("%02X ", font_data[i]);
+        }
+        std::cout << std::endl;
+        std::cout << "Read back first few values: ";
+        for (int i = 0; i < std::min(8, width * height); i++) {
+            printf("%02X ", read_back_data[i]);
+        }
+        std::cout << std::endl;
+    }
 
     std::cout << "Font texture updated successfully" << std::endl;
 }

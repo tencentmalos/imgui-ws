@@ -97,7 +97,17 @@ void ImDrawDataSerializer::serializeDrawList(const ImDrawList* draw_list) {
         static_cast<uint32_t>(cmd.ClipRect.z * 1000.0f);
     serialized_cmd.clip_rect[3] =
         static_cast<uint32_t>(cmd.ClipRect.w * 1000.0f);
-    serialized_cmd.texture_id = reinterpret_cast<uintptr_t>(cmd.GetTexID());
+    // Map texture IDs: use a fixed ID for font texture, pass through other textures
+    ImTextureID tex_id = cmd.GetTexID();
+    ImGuiIO& io = ImGui::GetIO();
+
+    if (tex_id == io.Fonts->TexID) {
+        // This is the font texture, use fixed ID 1
+        serialized_cmd.texture_id = 1;
+    } else {
+        // Pass through other texture IDs (may need mapping in the future)
+        serialized_cmd.texture_id = reinterpret_cast<uintptr_t>(tex_id);
+    }
 
     // Handle UserCallback - note: we can't serialize function pointers directly
     // For now, we'll store a null pointer and handle this in the future if

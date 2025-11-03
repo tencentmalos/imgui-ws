@@ -9,6 +9,8 @@
 #include <vector>
 #include <atomic>
 #include <mutex>
+#include <algorithm>
+#include <cstdio>
 
 // Global server instance
 struct ServerInstance {
@@ -84,20 +86,31 @@ struct ServerInstance {
             return;
         }
 
-        // Get ImGui font texture data
+        // Force rebuild font atlas to get fresh data
         ImGuiIO& io = ImGui::GetIO();
+        io.Fonts->Clear();
+        io.Fonts->AddFontDefault();
+        io.Fonts->Build();
+
         unsigned char* pixels;
         int width, height;
         io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
+
+        std::cout << "Font atlas rebuilt: " << width << "x" << height << std::endl;
+
+        // Debug: Check first few pixels to verify data
+        if (pixels && width > 0 && height > 0) {
+            std::cout << "First pixel value: " << (int)pixels[0] << std::endl;
+        }
 
         if (pixels && width > 0 && height > 0) {
             // Create font texture packet
             auto font_packet = serializer->getFontTexturePacket(font_texture_id, pixels, width, height, 0);
 
             // Cache the packet data for future retransmission
+            auto full_packet_data = font_packet.GetFullPacketData();
             cached_font_texture_data.clear();
-            cached_font_texture_data.resize(font_packet.TotalSize());
-            memcpy(cached_font_texture_data.data(), font_packet.GetData(), font_packet.TotalSize());
+            cached_font_texture_data = full_packet_data;  // Copy the vector
 
             font_texture_ready = true;
             std::cout << "Prepared font texture cache: " << width << "x" << height

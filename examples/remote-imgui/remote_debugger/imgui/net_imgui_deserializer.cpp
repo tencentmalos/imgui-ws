@@ -250,11 +250,19 @@ bool ImDrawDataDeserializer::DeserializeFontTexture(const NetPacketBuffer& packe
            &temp_data[offset],
            current_font_texture_->header.data_size);
 
-    std::cout << "Successfully deserialized font texture: "
+    // Debug: Check first few pixels to verify data integrity
+    std::cout << "Deserialized font texture: "
               << current_font_texture_->header.width << "x" << current_font_texture_->header.height
               << ", format: " << current_font_texture_->header.format
-              << ", data size: " << current_font_texture_->header.data_size << " bytes"
-              << std::endl;
+              << ", data size: " << current_font_texture_->header.data_size << " bytes" << std::endl;
+
+    if (!current_font_texture_->pixel_data.empty()) {
+        std::cout << "First few deserialized pixel values: ";
+        for (int i = 0; i < std::min(16, (int)current_font_texture_->pixel_data.size()); i++) {
+            printf("%02X ", current_font_texture_->pixel_data[i]);
+        }
+        std::cout << std::endl;
+    }
 
     return true;
 }
