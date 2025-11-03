@@ -156,7 +156,7 @@ int main(int argc, char** argv) {
             ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
 
             static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-            ImGui::ColorEdit3("clear color", (float*)&clear_color);
+            ImGui::ColorEdit3("Clear color", (float*)&clear_color);
 
             if (ImGui::Button("Button")) {
                 counter++;

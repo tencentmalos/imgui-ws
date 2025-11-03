@@ -71,7 +71,8 @@ private:
     ImVec4 clear_color_ = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     // Data reception
-    std::vector<uint8_t> received_data_;
+    spatial::debugger::NetPacketBuffer cached_packet_;
+    //std::vector<uint8_t> received_data_;
     spatial::debugger::ImDrawDataDeserializer deserializer_;
 
     // Network client
@@ -145,20 +146,18 @@ bool SimpleOpenGLClient::connect(const std::string& server_ip, int port) {
             if (service_cmd == static_cast<uint32_t>(spatial::debugger::ImGuiCommand::FrameData)) {
 
                 // Process ImGui draw data
-                if (deserializer_.deserializePacket(data.data(), data.size())) {
-                    std::cout << "Received and deserialized ImGui frame data: " << data.size() << " bytes" << std::endl;
+                if (deserializer_.DeserializePacket(packet)) {
+                    std::cout << "Received and deserialized ImGui frame data: " << packet.TotalSize() << " bytes" << std::endl;
 
                     // Store data for visualization
-                    received_data_.clear();
-                    received_data_.insert(received_data_.end(), data.begin(), data.end());
+                    cached_packet_ = packet;
                 } else {
                     std::cout << "Failed to deserialize ImGui frame data" << std::endl;
                 }
             } else {
                 std::cout << "Received other service data: "
-                          << NetworkProtocol::getServiceTypeName(service_type) << " "
-                          << NetworkProtocol::getCommandName(service_type, service_cmd)
-                          << ", size: " << data.size() << " bytes" << std::endl;
+                          << (int)service_type << " "
+                          << ", size: " << packet.TotalSize() << " bytes" << std::endl;
             }
         });
     }
@@ -186,15 +185,16 @@ bool SimpleOpenGLClient::connect(const std::string& server_ip, int port) {
 
         network_client_->setDisconnectCallback([this]() {
             std::cout << "Disconnected from server" << std::endl;
-            if (network_processor_) {
-                network_processor_->clear();
-            }
+            //if (network_processor_) {
+            //    network_processor_->Clear();
+            //}
         });
 
         network_client_->setReceiveCallback([this](const uint8_t* data, size_t size) {
             // Process incoming data through network processor
             if (network_processor_) {
-                network_processor_->processIncomingData(data, size);
+                network_processor_->AppendIncommingData(data, size);
+                ////network_processor_->processIncomingData(data, size);
             }
         });
     }
@@ -267,7 +267,7 @@ void SimpleOpenGLClient::cleanup() {
 
     // Cleanup network processor
     if (network_processor_) {
-        network_processor_->clear();
+        //network_processor_->clear();
         network_processor_.reset();
     }
 
@@ -325,7 +325,7 @@ void SimpleOpenGLClient::renderFrame() {
     glClear(GL_COLOR_BUFFER_BIT);
 
     // If we have remote frame data, render it directly
-    if (deserializer_.hasValidFrame()) {
+    if (deserializer_.HasValidFrame()) {
       renderRemoteFrameOnly();
     }
     else {
@@ -367,7 +367,8 @@ void SimpleOpenGLClient::renderLocalUI() {
                 network_client_->disconnect();
                 std::cout << "Disconnecting from server" << std::endl;
             }
-            received_data_.clear();
+            cached_packet_.Clear();
+            ////received_data_.clear();
         }
 
         ImGui::Separator();
@@ -384,7 +385,7 @@ void SimpleOpenGLClient::renderLocalUI() {
         ImGui::Separator();
 
         ImGui::Text("Network functionality implemented with libevent");
-        ImGui::Text("Data received: %zu bytes", received_data_.size());
+        ImGui::Text("Data received: %zu bytes", cached_packet_.TotalSize());
 
         ImGui::End();
     }
@@ -429,11 +430,11 @@ void SimpleOpenGLClient::run() {
 }
 
 void SimpleOpenGLClient::renderRemoteFrameOnly() {
-    if (!deserializer_.hasValidFrame()) {
+    if (!deserializer_.HasValidFrame()) {
         return;
     }
 
-    const FrameData* frame_data = deserializer_.getFrameData();
+    const spatial::debugger::FrameData* frame_data = deserializer_.GetFrameData();
     if (!frame_data || frame_data->header.cmd_lists_count == 0) {
         return;
     }
@@ -514,7 +515,7 @@ void SimpleOpenGLClient::renderRemoteFrameOnly() {
         new_list->CmdBuffer.resize(cmd_count);
         for (uint32_t j = 0; j < cmd_count; j++) {
             if (command_offset + j < frame_data->draw_commands.size()) {
-                const DrawCmd& src_cmd = frame_data->draw_commands[command_offset + j];
+                const spatial::debugger::DrawCmd& src_cmd = frame_data->draw_commands[command_offset + j];
                 ImDrawCmd& dst_cmd = new_list->CmdBuffer[j];
 
                 dst_cmd.ElemCount = src_cmd.idx_count;
