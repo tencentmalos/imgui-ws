@@ -15,8 +15,9 @@ constexpr uint32_t IMGUI_PROTOCOL_VERSION = 1;
 
 // ImGui service commands
 enum class ImGuiCommand : uint16_t {
-    FrameData = 0x1,       // Complete frame data
-    TextureData = 0x2,       // Partial frame data
+    FrameData = 0x1,         // Complete frame data
+    FontTexture = 0x2,       // Font texture data
+    TextureUpdate = 0x3,     // Texture update data
 };
 
 // Frame data structures for deserialization
@@ -43,6 +44,20 @@ struct DrawCmd {
   uint32_t user_callback;
   uint32_t user_callback_data_size;
   std::vector<uint8_t> user_callback_data;
+};
+
+// Font texture data structure
+struct FontTextureHeader {
+  uint32_t texture_id;        // Unique texture identifier
+  uint32_t width;             // Texture width
+  uint32_t height;            // Texture height
+  uint32_t data_size;         // Pixel data size
+  uint32_t format;            // Pixel format (0=Alpha8, 1=RGBA32)
+};
+
+struct FontTextureData {
+  FontTextureHeader header;
+  std::vector<uint8_t> pixel_data;
 };
 
 // Simplified frame data structure

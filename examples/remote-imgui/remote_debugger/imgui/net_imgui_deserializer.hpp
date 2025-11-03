@@ -21,8 +21,14 @@ public:
     // Deserialize binary data
     bool DeserializePacket(const NetPacketBuffer& packet);
 
+    // Deserialize font texture data
+    bool DeserializeFontTexture(const NetPacketBuffer& packet);
+
     // Get deserialized frame data
     const FrameData* GetFrameData() const;
+
+    // Get font texture data
+    const FontTextureData* GetFontTextureData() const;
 
     // Clear data
     void Clear();
@@ -42,6 +48,7 @@ private:
 
 private:
     std::unique_ptr<FrameData> current_frame_;
+    std::unique_ptr<FontTextureData> current_font_texture_;
 };
 
 }// namespace spatial::debugger

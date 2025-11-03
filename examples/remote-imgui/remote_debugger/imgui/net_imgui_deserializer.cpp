@@ -8,7 +8,10 @@
 
 namespace spatial::debugger {
 
-ImDrawDataDeserializer::ImDrawDataDeserializer() { current_frame_ = std::make_unique<FrameData>(); }
+ImDrawDataDeserializer::ImDrawDataDeserializer() {
+    current_frame_ = std::make_unique<FrameData>();
+    current_font_texture_ = std::make_unique<FontTextureData>();
+}
 
 ImDrawDataDeserializer::~ImDrawDataDeserializer() { Clear(); }
 
@@ -206,9 +209,65 @@ const FrameData* ImDrawDataDeserializer::GetFrameData() const {
     return current_frame_ ? current_frame_.get() : nullptr;
 }
 
+bool ImDrawDataDeserializer::DeserializeFontTexture(const NetPacketBuffer& packet) {
+    auto& temp_data = packet.GetContents();
+
+    if (temp_data.empty()) [[unlikely]] {
+        std::cerr << "Invalid font texture packet data" << std::endl;
+        return false;
+    }
+
+    size_t size = temp_data.size();
+    size_t offset = 0;
+
+    // Check minimum size for header
+    if (size < sizeof(FontTextureHeader)) {
+        std::cerr << "Font texture packet too small for header" << std::endl;
+        return false;
+    }
+
+    // Read font texture header
+    memcpy(&current_font_texture_->header, &temp_data[offset], sizeof(FontTextureHeader));
+    offset += sizeof(FontTextureHeader);
+
+    // Validate header data
+    if (current_font_texture_->header.width == 0 ||
+        current_font_texture_->header.height == 0 ||
+        current_font_texture_->header.data_size == 0) {
+        std::cerr << "Invalid font texture dimensions" << std::endl;
+        return false;
+    }
+
+    // Check if we have enough data for pixel data
+    if (size < sizeof(FontTextureHeader) + current_font_texture_->header.data_size) {
+        std::cerr << "Font texture packet incomplete" << std::endl;
+        return false;
+    }
+
+    // Read pixel data
+    current_font_texture_->pixel_data.resize(current_font_texture_->header.data_size);
+    memcpy(current_font_texture_->pixel_data.data(),
+           &temp_data[offset],
+           current_font_texture_->header.data_size);
+
+    std::cout << "Successfully deserialized font texture: "
+              << current_font_texture_->header.width << "x" << current_font_texture_->header.height
+              << ", format: " << current_font_texture_->header.format
+              << ", data size: " << current_font_texture_->header.data_size << " bytes"
+              << std::endl;
+
+    return true;
+}
+
+const FontTextureData* ImDrawDataDeserializer::GetFontTextureData() const {
+    return current_font_texture_ ? current_font_texture_.get() : nullptr;
+}
+
 void ImDrawDataDeserializer::Clear() {
     current_frame_.reset();
     current_frame_ = std::make_unique<FrameData>();
+    current_font_texture_.reset();
+    current_font_texture_ = std::make_unique<FontTextureData>();
 }
 
 bool ImDrawDataDeserializer::HasValidFrame() const {

@@ -59,6 +59,10 @@ private:
     void renderLocalUI();
     void renderRemoteFrameOnly();
 
+    // Font texture management
+    void updateFontTexture(const uint8_t* font_data, int width, int height);
+    void cleanupFontTexture();
+
     // Members
     GLFWwindow* window_ = nullptr;
     int window_width_ = 1280;
@@ -69,6 +73,9 @@ private:
 
     // ImGui state
     ImVec4 clear_color_ = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+    // Font texture
+    GLuint font_texture_id_ = 0;
 
     // Data reception
     spatial::debugger::NetPacketBuffer cached_packet_;
@@ -154,9 +161,25 @@ bool SimpleOpenGLClient::connect(const std::string& server_ip, int port) {
                 } else {
                     std::cout << "Failed to deserialize ImGui frame data" << std::endl;
                 }
+            } else if (service_cmd == static_cast<uint32_t>(spatial::debugger::ImGuiCommand::FontTexture)) {
+                // Process font texture data
+                if (deserializer_.DeserializeFontTexture(packet)) {
+                    std::cout << "Received and deserialized font texture data: " << packet.TotalSize() << " bytes" << std::endl;
+
+                    // Update font texture in OpenGL
+                    const auto* font_texture = deserializer_.GetFontTextureData();
+                    if (font_texture) {
+                        updateFontTexture(font_texture->pixel_data.data(),
+                                        font_texture->header.width,
+                                        font_texture->header.height);
+                    }
+                } else {
+                    std::cout << "Failed to deserialize font texture data" << std::endl;
+                }
             } else {
                 std::cout << "Received other service data: "
                           << (int)service_type << " "
+                          << ", cmd: " << service_cmd
                           << ", size: " << packet.TotalSize() << " bytes" << std::endl;
             }
         });
@@ -272,6 +295,9 @@ void SimpleOpenGLClient::cleanup() {
     }
 
     if (window_) {
+        // Clean up font texture before shutting down ImGui
+        cleanupFontTexture();
+
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
@@ -523,7 +549,12 @@ void SimpleOpenGLClient::renderRemoteFrameOnly() {
                 dst_cmd.ClipRect.y = src_cmd.clip_rect[1] / 1000.0f;
                 dst_cmd.ClipRect.z = src_cmd.clip_rect[2] / 1000.0f;
                 dst_cmd.ClipRect.w = src_cmd.clip_rect[3] / 1000.0f;
-                dst_cmd.TextureId = (ImTextureID)(uintptr_t)src_cmd.texture_id;
+                // Map texture IDs: if it's the default font texture (ID 1), use our client font texture
+                if (src_cmd.texture_id == 1) {
+                    dst_cmd.TextureId = reinterpret_cast<ImTextureID>(static_cast<uintptr_t>(font_texture_id_));
+                } else {
+                    dst_cmd.TextureId = (ImTextureID)(uintptr_t)src_cmd.texture_id;
+                }
                 dst_cmd.IdxOffset = 0;
                 dst_cmd.VtxOffset = 0;
 
@@ -585,6 +616,49 @@ void SimpleOpenGLClient::renderRemoteFrameOnly() {
 
     // Increment frame counter
     frame_count_++;
+}
+
+void SimpleOpenGLClient::updateFontTexture(const uint8_t* font_data, int width, int height) {
+    if (font_data == nullptr || width <= 0 || height <= 0) {
+        return;
+    }
+
+    std::cout << "Updating font texture: " << width << "x" << height << std::endl;
+
+    // Generate or update font texture
+    if (font_texture_id_ == 0) {
+        glGenTextures(1, &font_texture_id_);
+        std::cout << "Generated new font texture ID: " << font_texture_id_ << std::endl;
+    }
+
+    glBindTexture(GL_TEXTURE_2D, font_texture_id_);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+
+    // Upload font data (Alpha8 format)
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA8, width, height, 0, GL_ALPHA, GL_UNSIGNED_BYTE, font_data);
+
+    // Update ImGui's font atlas texture ID
+    ImGuiIO& io = ImGui::GetIO();
+    io.Fonts->SetTexID(reinterpret_cast<ImTextureID>(static_cast<uintptr_t>(font_texture_id_)));
+
+    // Force ImGui to rebuild font atlas with new texture
+    io.Fonts->Clear();
+    io.Fonts->AddFontDefault();
+    io.Fonts->Build();
+
+    std::cout << "Font texture updated successfully" << std::endl;
+}
+
+void SimpleOpenGLClient::cleanupFontTexture() {
+    if (font_texture_id_ != 0) {
+        glDeleteTextures(1, &font_texture_id_);
+        font_texture_id_ = 0;
+        std::cout << "Cleaned up font texture" << std::endl;
+    }
 }
 
 int main(int, char** argv) {

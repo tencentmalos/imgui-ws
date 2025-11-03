@@ -36,6 +36,10 @@ class ImDrawDataSerializer {
   // Get packetized data for network transmission
   NetPacketBuffer getPacketizedData();
 
+  // Font texture serialization
+  NetPacketBuffer getFontTexturePacket(uint32_t texture_id, unsigned char* pixels,
+                                       int width, int height, uint32_t format = 0);
+
  private:
   std::vector<uint8_t> serialized_data_;
   ImDrawData* current_draw_data_;

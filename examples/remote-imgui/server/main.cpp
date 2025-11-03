@@ -8,6 +8,7 @@
 #include <chrono>
 #include <vector>
 #include <atomic>
+#include <mutex>
 
 // Global server instance
 struct ServerInstance {
@@ -15,10 +16,19 @@ struct ServerInstance {
     std::unique_ptr<NetworkServer> network_server;
     std::atomic<int> client_count{0};
 
+    // Font texture management
+    uint32_t font_texture_id{1};  // Use a fixed ID for font texture
+    std::vector<uint8_t> cached_font_texture_data;  // Cached font texture data for retransmission
+    std::mutex font_texture_mutex;  // Mutex for thread-safe font texture access
+    bool font_texture_ready{false};  // Whether font texture data is ready
+
     // Network callbacks
     void onClientConnect(int client_id) {
         client_count++;
         std::cout << "Client connected: " << client_id << " (total: " << client_count.load() << ")" << std::endl;
+
+        // Send font texture to newly connected client (if ready)
+        sendFontTextureToClient();
     }
 
     void onClientDisconnect(int client_id) {
@@ -61,13 +71,73 @@ struct ServerInstance {
         return true;
     }
 
+    // Prepare and cache font texture data
+    void prepareFontTexture() {
+        std::lock_guard<std::mutex> lock(font_texture_mutex);
+
+        if (font_texture_ready) {
+            return; // Already prepared
+        }
+
+        if (!serializer) {
+            std::cerr << "Serializer not ready for font texture preparation" << std::endl;
+            return;
+        }
+
+        // Get ImGui font texture data
+        ImGuiIO& io = ImGui::GetIO();
+        unsigned char* pixels;
+        int width, height;
+        io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
+
+        if (pixels && width > 0 && height > 0) {
+            // Create font texture packet
+            auto font_packet = serializer->getFontTexturePacket(font_texture_id, pixels, width, height, 0);
+
+            // Cache the packet data for future retransmission
+            cached_font_texture_data.clear();
+            cached_font_texture_data.resize(font_packet.TotalSize());
+            memcpy(cached_font_texture_data.data(), font_packet.GetData(), font_packet.TotalSize());
+
+            font_texture_ready = true;
+            std::cout << "Prepared font texture cache: " << width << "x" << height
+                      << ", data size: " << cached_font_texture_data.size() << " bytes" << std::endl;
+        } else {
+            std::cerr << "Failed to get font texture data from ImGui" << std::endl;
+        }
+    }
+
+    // Send cached font texture to all connected clients
+    void sendFontTextureToClient() {
+        std::lock_guard<std::mutex> lock(font_texture_mutex);
+
+        if (!font_texture_ready || !network_server) {
+            return;
+        }
+
+        // Create packet from cached data
+        spatial::debugger::NetPacketBuffer font_packet;
+        font_packet.InitializeFromData(cached_font_texture_data.data(), cached_font_texture_data.size());
+
+        // Broadcast to all connected clients
+        network_server->broadcast(font_packet);
+
+        std::cout << "Broadcasted cached font texture to " << client_count.load() << " clients" << std::endl;
+    }
+
     void broadcastDrawData() {
         if (serializer && network_server && client_count.load() > 0) {
-            // Get packetized data
+            // Ensure font texture is prepared and send to clients
+            prepareFontTexture();
+
+            // Send font texture to all clients (reliable transmission)
+            sendFontTextureToClient();
+
+            // Get packetized frame data
             auto packet = serializer->getPacketizedData();
             network_server->broadcast(packet);
-              
-            std::cout << "Broadcasted " << packet.TotalSize() << " packets to "
+
+            std::cout << "Broadcasted frame data (" << packet.TotalSize() << " bytes) to "
                         << client_count.load() << " clients" << std::endl;
         }
     }
@@ -77,6 +147,10 @@ struct ServerInstance {
             network_server->stop();
             network_server.reset();
         }
+
+        std::lock_guard<std::mutex> lock(font_texture_mutex);
+        cached_font_texture_data.clear();
+        font_texture_ready = false;
 
         serializer.reset();
         client_count = 0;

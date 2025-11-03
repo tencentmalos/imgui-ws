@@ -179,4 +179,60 @@ NetPacketBuffer ImDrawDataSerializer::getPacketizedData() {
   return packet;
 }
 
+NetPacketBuffer ImDrawDataSerializer::getFontTexturePacket(uint32_t texture_id,
+                                                           unsigned char* pixels,
+                                                           int width, int height,
+                                                           uint32_t format) {
+  NetPacketBuffer packet;
+
+  if (!pixels || width <= 0 || height <= 0) {
+    // Return empty packet for invalid data
+    auto header = NetPacketEncoder::CreaterPacketHeader(NetServiceType::RemoteImgui,
+                                          (uint16_t)ImGuiCommand::FontTexture,
+                                          0);
+    packet.Initialize(header, nullptr, 0);
+    return packet;
+  }
+
+  // Create font texture data
+  FontTextureData texture_data;
+  texture_data.header.texture_id = texture_id;
+  texture_data.header.width = width;
+  texture_data.header.height = height;
+  texture_data.header.format = format;
+
+  size_t data_size = width * height * (format == 1 ? 4 : 1); // RGBA32 vs Alpha8
+  texture_data.header.data_size = data_size;
+  texture_data.pixel_data.resize(data_size);
+
+  // Copy pixel data
+  memcpy(texture_data.pixel_data.data(), pixels, data_size);
+
+  // Serialize the font texture data
+  std::vector<uint8_t> serialized_texture;
+  serialized_texture.reserve(sizeof(FontTextureHeader) + data_size);
+
+  // Write header
+  serialized_texture.insert(serialized_texture.end(),
+                           reinterpret_cast<const uint8_t*>(&texture_data.header),
+                           reinterpret_cast<const uint8_t*>(&texture_data.header) + sizeof(FontTextureHeader));
+
+  // Write pixel data
+  serialized_texture.insert(serialized_texture.end(),
+                           texture_data.pixel_data.begin(),
+                           texture_data.pixel_data.end());
+
+  // Create packet
+  auto header = NetPacketEncoder::CreaterPacketHeader(NetServiceType::RemoteImgui,
+                                        (uint16_t)ImGuiCommand::FontTexture,
+                                        serialized_texture.size());
+
+  packet.Initialize(header, serialized_texture.data(), serialized_texture.size());
+
+  std::cout << "Serialized font texture: " << width << "x" << height
+            << ", format: " << format << ", data size: " << data_size << " bytes" << std::endl;
+
+  return packet;
+}
+
 }  // namespace spatial::debugger
