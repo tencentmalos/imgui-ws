@@ -63,6 +63,8 @@ private:
     void updateFontTexture(const uint8_t* font_data, int width, int height);
     void cleanupFontTexture();
 
+    std::vector<uint8_t> ConvertAlphaToRgbaWhite(const uint8_t* alpha_data, int width, int height);
+private:
     // Members
     GLFWwindow* window_ = nullptr;
     int window_width_ = 1280;
@@ -647,11 +649,34 @@ void SimpleOpenGLClient::renderRemoteFrameOnly() {
     frame_count_++;
 }
 
+std::vector<uint8_t> SimpleOpenGLClient::ConvertAlphaToRgbaWhite(const uint8_t* alpha_data, int width, int height) {
+    if (!alpha_data || width <= 0 || height <= 0) {
+        return {};
+    }
+
+    size_t pixel_count = static_cast<size_t>(width) * height;
+
+    std::vector<uint8_t> rgba_data(pixel_count * 4);
+
+    for (size_t i = 0; i < pixel_count; ++i) {
+        uint8_t alpha = alpha_data[i];
+        rgba_data[i * 4 + 0] = 255;   // Red
+        rgba_data[i * 4 + 1] = 255;   // Green
+        rgba_data[i * 4 + 2] = 255;   // Blue
+        rgba_data[i * 4 + 3] = alpha; // Alpha
+    }
+    return rgba_data;
+}
+
 void SimpleOpenGLClient::updateFontTexture(const uint8_t* font_data, int width, int height) {
     if (font_data == nullptr || width <= 0 || height <= 0) {
         std::cerr << "Invalid font texture data: " << (void*)font_data << ", " << width << "x" << height << std::endl;
         return;
     }
+
+    auto rgba_data = ConvertAlphaToRgbaWhite(font_data, width, height);
+
+
 
     std::cout << "Updating font texture: " << width << "x" << height << std::endl;
 
@@ -675,7 +700,7 @@ void SimpleOpenGLClient::updateFontTexture(const uint8_t* font_data, int width, 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
     // Upload font data (Alpha8 format)
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
     // Check for OpenGL errors before texture upload
     GLenum err = glGetError();
@@ -683,7 +708,7 @@ void SimpleOpenGLClient::updateFontTexture(const uint8_t* font_data, int width, 
         std::cerr << "OpenGL error before texture upload: " << err << std::endl;
     }
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA8, width, height, 0, GL_ALPHA, GL_UNSIGNED_BYTE, font_data);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba_data.data());
 
     // Check for OpenGL errors after texture upload
     err = glGetError();
@@ -748,6 +773,9 @@ void SimpleOpenGLClient::cleanupFontTexture() {
         std::cout << "Cleaned up font texture" << std::endl;
     }
 }
+
+
+
 
 int main(int, char** argv) {
     SimpleOpenGLClient client;
