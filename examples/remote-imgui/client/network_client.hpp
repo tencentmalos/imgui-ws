@@ -24,28 +24,46 @@ public:
     NetworkClient();
     ~NetworkClient();
 
+    bool Initialize();
+
+    bool IsIntialized() const {
+        return base_ != nullptr;
+    }
+
     // Connect to server
-    bool connect(const std::string& host, int port);
+    bool Connect(const std::string& host, int port);
 
     // Disconnect from server
-    void disconnect();
+    void Disconnect();
 
     // Check if connected
-    bool isConnected() const { return connected_; }
+    bool IsConnected() const { return connected_; }
 
     // Send data to server
-    bool send(const uint8_t* data, size_t size);
+    bool Send(const uint8_t* data, size_t size);
 
     // Set callbacks
-    void setConnectCallback(ConnectCallback callback) { connect_callback_ = callback; }
-    void setDisconnectCallback(DisconnectCallback callback) { disconnect_callback_ = callback; }
-    void setReceiveCallback(DataReceiveCallback callback) { receive_callback_ = callback; }
+    void SetConnectCallback(ConnectCallback callback) { connect_callback_ = callback; }
+    void SetDisconnectCallback(DisconnectCallback callback) { disconnect_callback_ = callback; }
+    void SetReceiveCallback(DataReceiveCallback callback) { receive_callback_ = callback; }
 
     // Get connection info
-    std::string getServerInfo() const;
+    std::string GetServerInfo() const;
 
     // Event loop integration
-    void processEvents();  // Non-blocking event processing
+    void ProcessEvents();  // Non-blocking event processing
+private:
+    // Event callbacks
+    static void ReadCallback(bufferevent* bev, void* ctx);
+    static void EventCallback(bufferevent* bev, short events, void* ctx);
+
+    // Internal methods
+    void HandleRead();
+    void HandleEvent(short events);
+
+    void DestroyClientBev();
+
+    void Cleanup();
 private:
     // Libevent components
     event_base* base_;
@@ -68,12 +86,5 @@ private:
 
 
 
-    // Event callbacks
-    static void readCallback(bufferevent* bev, void* ctx);
-    static void eventCallback(bufferevent* bev, short events, void* ctx);
 
-    // Internal methods
-    void handleRead();
-    void handleEvent(short events);
-    void cleanup();
 };

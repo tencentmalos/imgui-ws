@@ -167,7 +167,7 @@ struct ServerInstance {
 
         serializer.reset();
         client_count = 0;
-        std::cout << "Server cleanup completed" << std::endl;
+        std::cout << "Server Cleanup completed" << std::endl;
     }
 };
 
@@ -212,7 +212,7 @@ int main(int argc, char** argv) {
 
     // Initialize server
     if (!g_server.initialize(port)) {
-        fprintf(stderr, "Failed to initialize server on port %d\n", port);
+        fprintf(stderr, "Failed to Initialize server on port %d\n", port);
         return -1;
     }
 
