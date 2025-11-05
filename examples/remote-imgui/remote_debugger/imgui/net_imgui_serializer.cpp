@@ -97,7 +97,8 @@ void ImDrawDataSerializer::serializeDrawList(const ImDrawList* draw_list) {
     serialized_cmd.clip_rect[3] =
         static_cast<uint32_t>(cmd.ClipRect.w * 1000.0f);
 
-    // Directly serialize offsets to avoid cross-calculation issues
+    // In cmdlist-based organization, offsets are relative to the current cmdlist
+    // These offsets should be used as-is since they refer to positions within this cmdlist's buffers
     serialized_cmd.vtx_offset = static_cast<uint32_t>(cmd.VtxOffset);
     serialized_cmd.idx_offset = static_cast<uint32_t>(cmd.IdxOffset);
 

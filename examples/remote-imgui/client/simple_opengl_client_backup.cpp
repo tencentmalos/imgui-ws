@@ -443,17 +443,34 @@ void SimpleOpenGLClient::RenderRemoteFrameOnly() {
     // Allocate draw lists array
     remote_draw_data.CmdLists = new ImDrawList*[frame_data->header.cmd_lists_count];
 
-    // Create draw lists from cmdlist-based remote data
+    // Create draw lists from remote data
+    size_t vertex_offset = 0;
+    size_t index_offset = 0;
+    size_t command_offset = 0;
+
     for (uint32_t i = 0; i < frame_data->header.cmd_lists_count; i++) {
-        if (i >= frame_data->cmd_lists.size()) {
-            remote_draw_data.CmdLists[i] = nullptr;
-            continue;
+        // Get offsets for this command list
+        if (i < frame_data->vertex_offsets.size() && i < frame_data->index_offsets.size() &&
+            i < frame_data->command_offsets.size()) {
+            vertex_offset = frame_data->vertex_offsets[i];
+            index_offset = frame_data->index_offsets[i];
+            command_offset = frame_data->command_offsets[i];
         }
 
-        const spatial::debugger::CmdListData& cmdlist_data = frame_data->cmd_lists[i];
-        size_t list_vtx_count = cmdlist_data.vertex_buffer.size();
-        size_t list_idx_count = cmdlist_data.index_buffer.size();
-        uint32_t cmd_count = static_cast<uint32_t>(cmdlist_data.draw_commands.size());
+        // Calculate command count for this list
+        uint32_t cmd_count =
+                (i < frame_data->command_counts.size()) ? frame_data->command_counts[i] : 0;
+
+        // Determine vertex and index count for this list
+        size_t next_vertex_offset = (i + 1 < frame_data->vertex_offsets.size())
+                                            ? frame_data->vertex_offsets[i + 1]
+                                            : frame_data->vertex_buffers.size();
+        size_t next_index_offset = (i + 1 < frame_data->index_offsets.size())
+                                           ? frame_data->index_buffers[i + 1]
+                                           : frame_data->index_buffers.size();
+
+        size_t list_vtx_count = next_vertex_offset - vertex_offset;
+        size_t list_idx_count = next_index_offset - index_offset;
 
         if (list_vtx_count == 0 || list_idx_count == 0) {
             remote_draw_data.CmdLists[i] = nullptr;
@@ -466,74 +483,81 @@ void SimpleOpenGLClient::RenderRemoteFrameOnly() {
         // Allocate and copy vertex buffer
         new_list->VtxBuffer.resize(list_vtx_count);
         for (size_t v = 0; v < list_vtx_count; v++) {
-            new_list->VtxBuffer[v] = cmdlist_data.vertex_buffer[v];
+            if (vertex_offset + v < frame_data->vertex_buffers.size()) {
+                new_list->VtxBuffer[v] = frame_data->vertex_buffers[vertex_offset + v];
+            }
         }
 
         // Allocate and copy index buffer
         new_list->IdxBuffer.resize(list_idx_count);
         for (size_t idx = 0; idx < list_idx_count; idx++) {
-            new_list->IdxBuffer[idx] = cmdlist_data.index_buffer[idx];
+            if (index_offset + idx < frame_data->index_buffers.size()) {
+                new_list->IdxBuffer[idx] = frame_data->index_buffers[index_offset + idx];
+            }
         }
 
         // Copy draw commands
         new_list->CmdBuffer.resize(cmd_count);
         for (uint32_t j = 0; j < cmd_count; j++) {
-            const spatial::debugger::DrawCmd& src_cmd = cmdlist_data.draw_commands[j];
-            ImDrawCmd& dst_cmd = new_list->CmdBuffer[j];
+            if (command_offset + j < frame_data->draw_commands.size()) {
+                const spatial::debugger::DrawCmd& src_cmd =
+                        frame_data->draw_commands[command_offset + j];
+                ImDrawCmd& dst_cmd = new_list->CmdBuffer[j];
 
-            dst_cmd.ElemCount = src_cmd.idx_count;
-            dst_cmd.ClipRect.x = src_cmd.clip_rect[0] / 1000.0f;
-            dst_cmd.ClipRect.y = src_cmd.clip_rect[1] / 1000.0f;
-            dst_cmd.ClipRect.z = src_cmd.clip_rect[2] / 1000.0f;
-            dst_cmd.ClipRect.w = src_cmd.clip_rect[3] / 1000.0f;
-            // Map texture IDs: if it's the default font texture (ID 1), use our client font texture
-            if (src_cmd.texture_id == 1) {
-                dst_cmd.TextureId =
-                        reinterpret_cast<ImTextureID>(static_cast<uintptr_t>(font_texture_id_));
-                // Debug: Only log the first font texture mapping to avoid spam
-                static bool font_texture_logged = false;
-                if (!font_texture_logged) {
-                    std::cout << "Mapped server font texture ID " << src_cmd.texture_id
-                              << " to client texture ID " << font_texture_id_ << std::endl;
-                    font_texture_logged = true;
+                dst_cmd.ElemCount = src_cmd.idx_count;
+                dst_cmd.ClipRect.x = src_cmd.clip_rect[0] / 1000.0f;
+                dst_cmd.ClipRect.y = src_cmd.clip_rect[1] / 1000.0f;
+                dst_cmd.ClipRect.z = src_cmd.clip_rect[2] / 1000.0f;
+                dst_cmd.ClipRect.w = src_cmd.clip_rect[3] / 1000.0f;
+                // Map texture IDs: if it's the default font texture (ID 1), use our client font texture
+                if (src_cmd.texture_id == 1) {
+                    dst_cmd.TextureId =
+                            reinterpret_cast<ImTextureID>(static_cast<uintptr_t>(font_texture_id_));
+                    // Debug: Only log the first font texture mapping to avoid spam
+                    static bool font_texture_logged = false;
+                    if (!font_texture_logged) {
+                        std::cout << "Mapped server font texture ID " << src_cmd.texture_id
+                                  << " to client texture ID " << font_texture_id_ << std::endl;
+                        font_texture_logged = true;
+                    }
+                } else {
+                    dst_cmd.TextureId = (ImTextureID) (uintptr_t) src_cmd.texture_id;
                 }
-            } else {
-                dst_cmd.TextureId = (ImTextureID) (uintptr_t) src_cmd.texture_id;
-            }
-            // Use the transmitted offsets directly instead of calculating them
-            dst_cmd.IdxOffset = src_cmd.idx_offset;
-            dst_cmd.VtxOffset = src_cmd.vtx_offset;
+                // Use the transmitted offsets directly instead of calculating them
+                dst_cmd.IdxOffset = src_cmd.idx_offset;
+                dst_cmd.VtxOffset = src_cmd.vtx_offset;
 
                 // Handle UserCallback restoration
-            if (src_cmd.user_callback != 0) {
-                // For remote ImGui, we need to provide appropriate callbacks
-                // Since we can't serialize function pointers, we'll provide standard callbacks
-                if (src_cmd.user_callback == 1) {
-                    // This was a UserCallback - provide a default rendering callback
-                    dst_cmd.UserCallback = ImDrawCallback_ResetRenderState;
+                if (src_cmd.user_callback != 0) {
+                    // For remote ImGui, we need to provide appropriate callbacks
+                    // Since we can't serialize function pointers, we'll provide standard callbacks
+                    if (src_cmd.user_callback == 1) {
+                        // This was a UserCallback - provide a default rendering callback
+                        dst_cmd.UserCallback = ImDrawCallback_ResetRenderState;
 
-                    // Allocate and copy user callback data
-                    if (src_cmd.user_callback_data_size > 0 &&
-                        !src_cmd.user_callback_data.empty()) {
-                        // Allocate memory for callback data (will be freed by ImGui)
-                        void* callback_data = malloc(src_cmd.user_callback_data_size);
-                        if (callback_data) {
-                            memcpy(callback_data, src_cmd.user_callback_data.data(),
-                                   src_cmd.user_callback_data_size);
-                            dst_cmd.UserCallbackData = callback_data;
+                        // Allocate and copy user callback data
+                        if (src_cmd.user_callback_data_size > 0 &&
+                            !src_cmd.user_callback_data.empty()) {
+                            // Allocate memory for callback data (will be freed by ImGui)
+                            void* callback_data = malloc(src_cmd.user_callback_data_size);
+                            if (callback_data) {
+                                memcpy(callback_data, src_cmd.user_callback_data.data(),
+                                       src_cmd.user_callback_data_size);
+                                dst_cmd.UserCallbackData = callback_data;
+                            } else {
+                                dst_cmd.UserCallbackData = nullptr;
+                            }
                         } else {
                             dst_cmd.UserCallbackData = nullptr;
                         }
                     } else {
+                        dst_cmd.UserCallback = nullptr;
                         dst_cmd.UserCallbackData = nullptr;
                     }
                 } else {
                     dst_cmd.UserCallback = nullptr;
                     dst_cmd.UserCallbackData = nullptr;
                 }
-            } else {
-                dst_cmd.UserCallback = nullptr;
-                dst_cmd.UserCallbackData = nullptr;
             }
         }
 

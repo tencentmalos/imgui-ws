@@ -88,9 +88,19 @@ int main() {
     std::cout << "Deserialized draw lists: " << frame_data->header.cmd_lists_count << std::endl;
     std::cout << "Display size: " << frame_data->header.display_size[0]
               << "x" << frame_data->header.display_size[1] << std::endl;
-    std::cout << "Total vertices: " << frame_data->vertex_buffers.size() << std::endl;
-    std::cout << "Total indices: " << frame_data->index_buffers.size() << std::endl;
-    std::cout << "Total draw commands: " << frame_data->draw_commands.size() << std::endl;
+    // Calculate totals from cmdlist-based structure
+    size_t total_vertices = 0;
+    size_t total_indices = 0;
+    size_t total_commands = 0;
+    for (const auto& cmdlist : frame_data->cmd_lists) {
+        total_vertices += cmdlist.vertex_buffer.size();
+        total_indices += cmdlist.index_buffer.size();
+        total_commands += cmdlist.draw_commands.size();
+    }
+
+    std::cout << "Total vertices: " << total_vertices << std::endl;
+    std::cout << "Total indices: " << total_indices << std::endl;
+    std::cout << "Total draw commands: " << total_commands << std::endl;
 
     // 验证数据一致性
     bool data_consistent = true;
@@ -110,24 +120,34 @@ int main() {
         original_commands += cmd_list->CmdBuffer.Size;
     }
 
-    if (original_vertices != frame_data->vertex_buffers.size()) {
+    // Calculate deserialized totals from cmdlist-based structure
+    size_t deserialized_vertices = 0;
+    size_t deserialized_indices = 0;
+    size_t deserialized_commands = 0;
+    for (const auto& cmdlist : frame_data->cmd_lists) {
+        deserialized_vertices += cmdlist.vertex_buffer.size();
+        deserialized_indices += cmdlist.index_buffer.size();
+        deserialized_commands += cmdlist.draw_commands.size();
+    }
+
+    if (original_vertices != deserialized_vertices) {
         std::cerr << "ERROR: Vertex count mismatch! Original: "
                   << original_vertices << ", Deserialized: "
-                  << frame_data->vertex_buffers.size() << std::endl;
+                  << deserialized_vertices << std::endl;
         data_consistent = false;
     }
 
-    if (original_indices != frame_data->index_buffers.size()) {
+    if (original_indices != deserialized_indices) {
         std::cerr << "ERROR: Index count mismatch! Original: "
                   << original_indices << ", Deserialized: "
-                  << frame_data->index_buffers.size() << std::endl;
+                  << deserialized_indices << std::endl;
         data_consistent = false;
     }
 
-    if (original_commands != frame_data->draw_commands.size()) {
+    if (original_commands != deserialized_commands) {
         std::cerr << "ERROR: Command count mismatch! Original: "
                   << original_commands << ", Deserialized: "
-                  << frame_data->draw_commands.size() << std::endl;
+                  << deserialized_commands << std::endl;
         data_consistent = false;
     }
 

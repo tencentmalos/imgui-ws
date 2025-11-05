@@ -39,7 +39,7 @@ bool ImDrawDataDeserializer::DeserializePacket(const NetPacketBuffer& packet) {
     }
 
     std::cout << "Successfully deserialized ImGui frame: " << current_frame_->header.cmd_lists_count
-              << " draw lists, " << current_frame_->draw_commands.size() << " draw commands"
+              << " draw lists, " << current_frame_->cmd_lists.size() << " cmdlist data entries"
               << std::endl;
 
     return ValidateData();
@@ -92,19 +92,11 @@ bool ImDrawDataDeserializer::ParseFrameHeader(const std::vector<uint8_t>& data, 
 
 bool ImDrawDataDeserializer::ParseDrawLists(const std::vector<uint8_t>& data, size_t size,
                                             size_t& offset) {
-    // Clear previous data
-    current_frame_->vertex_buffers.clear();
-    current_frame_->index_buffers.clear();
-    current_frame_->draw_commands.clear();
-    current_frame_->vertex_offsets.clear();
-    current_frame_->index_offsets.clear();
-    current_frame_->command_offsets.clear();
-    current_frame_->command_counts.clear();
+    // Clear previous cmdlist-based data
+    current_frame_->cmd_lists.clear();
 
-    // Pre-allocate space
-    current_frame_->vertex_buffers.reserve(10000);
-    current_frame_->index_buffers.reserve(20000);
-    current_frame_->draw_commands.reserve(1000);
+    // Pre-allocate space for cmdlists
+    current_frame_->cmd_lists.reserve(current_frame_->header.cmd_lists_count);
 
     // Parse each draw list
     for (uint32_t i = 0; i < current_frame_->header.cmd_lists_count; i++) {
@@ -118,11 +110,8 @@ bool ImDrawDataDeserializer::ParseDrawLists(const std::vector<uint8_t>& data, si
         memcpy(&list_header, &data[offset], sizeof(DrawListHeader));
         offset += sizeof(DrawListHeader);
 
-        // Record offsets
-        current_frame_->vertex_offsets.push_back(current_frame_->vertex_buffers.size());
-        current_frame_->index_offsets.push_back(current_frame_->index_buffers.size());
-        current_frame_->command_offsets.push_back(current_frame_->draw_commands.size());
-        current_frame_->command_counts.push_back(list_header.cmd_count);
+        // Create new cmdlist data
+        CmdListData cmdlist_data;
 
         // Read vertex buffer
         if (list_header.vtx_buffer_size > 0) {
@@ -134,8 +123,8 @@ bool ImDrawDataDeserializer::ParseDrawLists(const std::vector<uint8_t>& data, si
             size_t vertex_count = list_header.vtx_buffer_size / sizeof(ImDrawVert);
             const ImDrawVert* vertices = reinterpret_cast<const ImDrawVert*>(&data[offset]);
 
-            current_frame_->vertex_buffers.insert(current_frame_->vertex_buffers.end(), vertices,
-                                                  vertices + vertex_count);
+            cmdlist_data.vertex_buffer.resize(vertex_count);
+            memcpy(cmdlist_data.vertex_buffer.data(), vertices, list_header.vtx_buffer_size);
             offset += list_header.vtx_buffer_size;
         }
 
@@ -149,12 +138,13 @@ bool ImDrawDataDeserializer::ParseDrawLists(const std::vector<uint8_t>& data, si
             size_t index_count = list_header.idx_buffer_size / sizeof(ImDrawIdx);
             const ImDrawIdx* indices = reinterpret_cast<const ImDrawIdx*>(&data[offset]);
 
-            current_frame_->index_buffers.insert(current_frame_->index_buffers.end(), indices,
-                                                 indices + index_count);
+            cmdlist_data.index_buffer.resize(index_count);
+            memcpy(cmdlist_data.index_buffer.data(), indices, list_header.idx_buffer_size);
             offset += list_header.idx_buffer_size;
         }
 
         // Read draw commands
+        cmdlist_data.draw_commands.reserve(list_header.cmd_count);
         for (uint32_t j = 0; j < list_header.cmd_count; j++) {
             // Check if we have enough data for the fixed part of DrawCmd
             size_t fixed_cmd_size = offsetof(DrawCmd, user_callback_data) - offsetof(DrawCmd, idx_count);
@@ -181,8 +171,11 @@ bool ImDrawDataDeserializer::ParseDrawLists(const std::vector<uint8_t>& data, si
                 offset += cmd.user_callback_data_size;
             }
 
-            current_frame_->draw_commands.push_back(cmd);
+            cmdlist_data.draw_commands.push_back(cmd);
         }
+
+        // Add cmdlist to frame data
+        current_frame_->cmd_lists.push_back(std::move(cmdlist_data));
     }
 
     return true;
@@ -283,19 +276,28 @@ bool ImDrawDataDeserializer::ValidateData() const {
         return false;
     }
 
-    // Validate draw list count matches actual data
-    if (current_frame_->command_counts.size() != current_frame_->header.cmd_lists_count) {
-        std::cerr << "Draw list count mismatch" << std::endl;
+    // Validate cmdlist count matches actual data
+    if (current_frame_->cmd_lists.size() != current_frame_->header.cmd_lists_count) {
+        std::cerr << "CmdList count mismatch: expected " << current_frame_->header.cmd_lists_count
+                  << ", got " << current_frame_->cmd_lists.size() << std::endl;
         return false;
     }
 
-    // Validate command totals match
-    size_t total_commands = 0;
-    for (uint32_t count: current_frame_->command_counts) { total_commands += count; }
+    // Validate each cmdlist has proper data
+    for (size_t i = 0; i < current_frame_->cmd_lists.size(); i++) {
+        const CmdListData& cmdlist = current_frame_->cmd_lists[i];
 
-    if (total_commands != current_frame_->draw_commands.size()) {
-        std::cerr << "Command count mismatch" << std::endl;
-        return false;
+        // Validate that vertex and index buffers match command expectations
+        // This is basic validation - more thorough checks could be added if needed
+        if (!cmdlist.vertex_buffer.empty() && cmdlist.draw_commands.empty()) {
+            std::cerr << "CmdList " << i << " has vertex data but no draw commands" << std::endl;
+            return false;
+        }
+
+        if (cmdlist.index_buffer.empty() && !cmdlist.draw_commands.empty()) {
+            std::cerr << "CmdList " << i << " has draw commands but no index data" << std::endl;
+            return false;
+        }
     }
 
     return true;

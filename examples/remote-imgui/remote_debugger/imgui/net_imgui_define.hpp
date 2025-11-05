@@ -62,16 +62,17 @@ struct FontTextureData {
   std::vector<uint8_t> pixel_data;
 };
 
-// Simplified frame data structure
+// Per-cmdlist data structure
+struct CmdListData {
+  std::vector<ImDrawVert> vertex_buffer;
+  std::vector<ImDrawIdx> index_buffer;
+  std::vector<DrawCmd> draw_commands;
+};
+
+// Simplified frame data structure - cmdlist-based organization
 struct FrameData {
   FrameHeader header;
-  std::vector<ImDrawVert> vertex_buffers;
-  std::vector<ImDrawIdx> index_buffers;
-  std::vector<DrawCmd> draw_commands;
-  std::vector<size_t> vertex_offsets;
-  std::vector<size_t> index_offsets;
-  std::vector<size_t> command_offsets;
-  std::vector<uint32_t> command_counts;
+  std::vector<CmdListData> cmd_lists;
 };
 
 
