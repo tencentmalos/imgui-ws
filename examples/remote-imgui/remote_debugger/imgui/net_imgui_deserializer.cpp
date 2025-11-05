@@ -115,14 +115,8 @@ bool ImDrawDataDeserializer::ParseDrawLists(const std::vector<uint8_t>& data, si
 
         // Read draw list header
         DrawListHeader list_header;
-        memcpy(&list_header.vtx_buffer_size, &data[offset], sizeof(uint32_t));
-        offset += sizeof(uint32_t);
-
-        memcpy(&list_header.idx_buffer_size, &data[offset], sizeof(uint32_t));
-        offset += sizeof(uint32_t);
-
-        memcpy(&list_header.cmd_count, &data[offset], sizeof(uint32_t));
-        offset += sizeof(uint32_t);
+        memcpy(&list_header, &data[offset], sizeof(DrawListHeader));
+        offset += sizeof(DrawListHeader);
 
         // Record offsets
         current_frame_->vertex_offsets.push_back(current_frame_->vertex_buffers.size());
@@ -162,29 +156,18 @@ bool ImDrawDataDeserializer::ParseDrawLists(const std::vector<uint8_t>& data, si
 
         // Read draw commands
         for (uint32_t j = 0; j < list_header.cmd_count; j++) {
-            if (offset + sizeof(uint32_t) * 7 > size) {// Updated for new DrawCmd size
+            // Check if we have enough data for the fixed part of DrawCmd
+            size_t fixed_cmd_size = offsetof(DrawCmd, user_callback_data) - offsetof(DrawCmd, idx_count);
+            if (offset + fixed_cmd_size > size) {
                 std::cerr << "Not enough data for draw command" << std::endl;
                 return false;
             }
 
             DrawCmd cmd;
 
-            // Read basic command data
-            memcpy(&cmd.idx_count, &data[offset], sizeof(uint32_t));
-            offset += sizeof(uint32_t);
-
-            memcpy(&cmd.clip_rect[0], &data[offset], sizeof(uint32_t) * 4);
-            offset += sizeof(uint32_t) * 4;
-
-            memcpy(&cmd.texture_id, &data[offset], sizeof(uint32_t));
-            offset += sizeof(uint32_t);
-
-            // Read UserCallback related data
-            memcpy(&cmd.user_callback, &data[offset], sizeof(uint32_t));
-            offset += sizeof(uint32_t);
-
-            memcpy(&cmd.user_callback_data_size, &data[offset], sizeof(uint32_t));
-            offset += sizeof(uint32_t);
+            // Read the fixed part of DrawCmd as a single block
+            memcpy(&cmd.idx_count, &data[offset], fixed_cmd_size);
+            offset += fixed_cmd_size;
 
             // Read user callback data if present
             if (cmd.user_callback_data_size > 0) {

@@ -67,17 +67,16 @@ void ImDrawDataSerializer::serializeDrawList(const ImDrawList* draw_list) {
   list_header.idx_buffer_size = draw_list->IdxBuffer.Size * sizeof(ImDrawIdx);
   list_header.cmd_count = draw_list->CmdBuffer.Size;
 
-  writeUint32(list_header.vtx_buffer_size);
-  writeUint32(list_header.idx_buffer_size);
-  writeUint32(list_header.cmd_count);
+  // Write header as a single block
+  writeBytes(reinterpret_cast<const uint8_t*>(&list_header), sizeof(DrawListHeader));
 
-  // Write vertex buffer
+  // Write vertex buffer as a single block
   if (draw_list->VtxBuffer.Size > 0) {
     writeBytes(reinterpret_cast<const uint8_t*>(draw_list->VtxBuffer.Data),
                draw_list->VtxBuffer.Size * sizeof(ImDrawVert));
   }
 
-  // Write index buffer
+  // Write index buffer as a single block
   if (draw_list->IdxBuffer.Size > 0) {
     writeBytes(reinterpret_cast<const uint8_t*>(draw_list->IdxBuffer.Data),
                draw_list->IdxBuffer.Size * sizeof(ImDrawIdx));
@@ -133,21 +132,14 @@ void ImDrawDataSerializer::serializeDrawList(const ImDrawList* draw_list) {
       }
     }
 
-    writeUint32(serialized_cmd.idx_count);
-    writeUint32(serialized_cmd.clip_rect[0]);
-    writeUint32(serialized_cmd.clip_rect[1]);
-    writeUint32(serialized_cmd.clip_rect[2]);
-    writeUint32(serialized_cmd.clip_rect[3]);
-    writeUint32(serialized_cmd.texture_id);
-    writeUint32(serialized_cmd.user_callback);
-    writeUint32(serialized_cmd.user_callback_data_size);
+    // Write DrawCmd structure (except the vector part which we'll handle separately)
+    writeBytes(reinterpret_cast<const uint8_t*>(&serialized_cmd),
+             offsetof(DrawCmd, user_callback_data) - offsetof(DrawCmd, idx_count));
 
     // Write user callback data if present
-    if (serialized_cmd.user_callback_data_size > 0 &&
-        cmd.UserCallbackData != nullptr) {
-      const uint8_t* callback_data =
-          reinterpret_cast<const uint8_t*>(cmd.UserCallbackData);
-      writeBytes(callback_data, serialized_cmd.user_callback_data_size);
+    if (!serialized_cmd.user_callback_data.empty()) {
+      writeBytes(serialized_cmd.user_callback_data.data(),
+               serialized_cmd.user_callback_data.size());
     }
   }
 }

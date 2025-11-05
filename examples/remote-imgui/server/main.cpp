@@ -190,8 +190,6 @@ int main(int argc, char** argv) {
     }
 #endif
 
-
-
     int port = 8080;
     if (argc > 1) port = atoi(argv[1]);
 
@@ -223,7 +221,7 @@ int main(int argc, char** argv) {
     bool running = true;
     static float f = 0.0f;
     static int counter = 0;
-    static bool show_demo_window = true;
+    static bool show_demo_window = false;
 
     while (running) {
         // Process network events
