@@ -276,15 +276,15 @@ void SimpleOpenGLClient::RenderFrame() {
                  clear_color_.z * clear_color_.w, clear_color_.w);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    bool enable_server_like_render = false;
-    if (enable_server_like_render) {
-        RenderServerLikeUI();
+    // If we have remote frame data, render it directly
+    if (deserializer_.HasValidFrame()) {
+        RenderRemoteFrameOnly();
     } else {
-        // If we have remote frame data, render it directly
-        if (deserializer_.HasValidFrame()) {
-            RenderRemoteFrameOnly();
+        // Only render local UI when no remote data
+        bool enable_server_like_render = true;
+        if (enable_server_like_render) {
+            RenderServerLikeUI();
         } else {
-            // Only render local UI when no remote data
             RenderLocalUI();
         }
     }
