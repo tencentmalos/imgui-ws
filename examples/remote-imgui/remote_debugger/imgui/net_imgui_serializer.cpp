@@ -96,6 +96,11 @@ void ImDrawDataSerializer::serializeDrawList(const ImDrawList* draw_list) {
         static_cast<uint32_t>(cmd.ClipRect.z * 1000.0f);
     serialized_cmd.clip_rect[3] =
         static_cast<uint32_t>(cmd.ClipRect.w * 1000.0f);
+
+    // Directly serialize offsets to avoid cross-calculation issues
+    serialized_cmd.vtx_offset = static_cast<uint32_t>(cmd.VtxOffset);
+    serialized_cmd.idx_offset = static_cast<uint32_t>(cmd.IdxOffset);
+
     // Map texture IDs: use a fixed ID for font texture, pass through other textures
     ImTextureID tex_id = cmd.GetTexID();
     ImGuiIO& io = ImGui::GetIO();
@@ -132,7 +137,7 @@ void ImDrawDataSerializer::serializeDrawList(const ImDrawList* draw_list) {
       }
     }
 
-    // Write DrawCmd structure (except the vector part which we'll handle separately)
+    // Write DrawCmd structure (including the new offset fields, except the vector part)
     writeBytes(reinterpret_cast<const uint8_t*>(&serialized_cmd),
              offsetof(DrawCmd, user_callback_data) - offsetof(DrawCmd, idx_count));
 

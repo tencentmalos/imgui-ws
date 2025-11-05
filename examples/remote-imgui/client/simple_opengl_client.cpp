@@ -523,8 +523,9 @@ void SimpleOpenGLClient::RenderRemoteFrameOnly() {
                 } else {
                     dst_cmd.TextureId = (ImTextureID) (uintptr_t) src_cmd.texture_id;
                 }
-                dst_cmd.IdxOffset = 0;
-                dst_cmd.VtxOffset = 0;
+                // Use the transmitted offsets directly instead of calculating them
+                dst_cmd.IdxOffset = src_cmd.idx_offset;
+                dst_cmd.VtxOffset = src_cmd.vtx_offset;
 
                 // Handle UserCallback restoration
                 if (src_cmd.user_callback != 0) {
