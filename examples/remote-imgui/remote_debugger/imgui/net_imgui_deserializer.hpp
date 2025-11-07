@@ -24,6 +24,13 @@ public:
     // Deserialize font texture data
     bool DeserializeFontTexture(const NetPacketBuffer& packet);
 
+    // Individual input event deserialization
+    bool DeserializeMouseMoveEvent(const NetPacketBuffer& packet, MouseMoveEvent& event);
+    bool DeserializeMouseButtonEvent(const NetPacketBuffer& packet, MouseButtonEvent& event);
+    bool DeserializeMouseWheelEvent(const NetPacketBuffer& packet, MouseWheelEvent& event);
+    bool DeserializeKeyboardEvent(const NetPacketBuffer& packet, KeyboardEvent& event);
+    bool DeserializeCharEvent(const NetPacketBuffer& packet, CharEvent& event);
+
     // Get deserialized frame data
     const FrameData* GetFrameData() const;
 
@@ -45,6 +52,13 @@ private:
 
     // Validate data integrity
     bool ValidateData() const;
+
+    // Parse individual input events
+    bool ParseMouseMoveEvent(MouseMoveEvent& event, const std::vector<uint8_t>& data, size_t size, size_t& offset);
+    bool ParseMouseButtonEvent(MouseButtonEvent& event, const std::vector<uint8_t>& data, size_t size, size_t& offset);
+    bool ParseMouseWheelEvent(MouseWheelEvent& event, const std::vector<uint8_t>& data, size_t size, size_t& offset);
+    bool ParseKeyboardEvent(KeyboardEvent& event, const std::vector<uint8_t>& data, size_t size, size_t& offset);
+    bool ParseCharEvent(CharEvent& event, const std::vector<uint8_t>& data, size_t size, size_t& offset);
 
 private:
     std::unique_ptr<FrameData> current_frame_;

@@ -53,11 +53,14 @@ int main(int argc, char** argv) {
     static bool show_demo_window = true;
 
     while (running) {
-        // Process network events
+        // Process network events (this will cache input events)
         g_server.network_server->processEvents();
 
         // Start new frame
         ImGui::NewFrame();
+
+        // Apply cached input events to ImGui IO
+        g_server.applyCachedInputEvents();
 
         // Create ImGui interface
         {
@@ -104,6 +107,9 @@ int main(int argc, char** argv) {
             // Broadcast to all clients
             g_server.broadcastDrawData();
         }
+
+        // Clear input cache for next frame
+        g_server.clearInputCache();
 
         // Simple delay
         std::this_thread::sleep_for(std::chrono::milliseconds(16));

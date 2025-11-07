@@ -63,6 +63,15 @@ private:
     void UpdateFontTexture(const uint8_t* font_data, int width, int height);
     void CleanupFontTexture();
 
+    // Input handling
+    void SetupInputCallbacks();
+    void CaptureInputEvents();
+    void SendInputEvents();
+
+    // Input event conversion helpers
+    spatial::debugger::MouseButton GetImGuiMouseButton(int glfw_button);
+    uint32_t GetImGuiKeyCode(int glfw_key);
+
     std::vector<uint8_t> ConvertAlphaToRgbaWhite(const uint8_t* alpha_data, int width, int height);
 private:
     // Members
@@ -89,6 +98,17 @@ private:
 
     // Network processor for packet handling
     std::unique_ptr<spatial::debugger::NetPacketDispatcher> network_processor_;
+
+    // Individual input events handling
+    std::vector<spatial::debugger::MouseMoveEvent> mouse_move_events_;
+    std::vector<spatial::debugger::MouseButtonEvent> mouse_button_events_;
+    std::vector<spatial::debugger::MouseWheelEvent> mouse_wheel_events_;
+    std::vector<spatial::debugger::KeyboardEvent> keyboard_events_;
+    std::vector<spatial::debugger::CharEvent> char_events_;
+
+    bool input_callbacks_setup_ = false;
+    double last_mouse_x_ = 0.0;
+    double last_mouse_y_ = 0.0;
 
     // Window flags - only show remote content and network settings
     bool show_network_window_ = true;

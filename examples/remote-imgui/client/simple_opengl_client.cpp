@@ -36,6 +36,9 @@ bool SimpleOpenGLClient::Initialize(int window_width, int window_height, const c
         return false;
     }
 
+    // Setup input callbacks after network initialization
+    SetupInputCallbacks();
+
     initialized_ = true;
     std::cout << "OpenGL client initialized successfully" << std::endl;
     return true;
@@ -408,6 +411,12 @@ void SimpleOpenGLClient::Run() {
         // Process network events
         if (network_client_) { network_client_->ProcessEvents(); }
 
+        // Capture and send input events
+        if (network_client_ && network_client_->IsConnected()) {
+            CaptureInputEvents();
+            SendInputEvents();
+        }
+
         // Render frame
         RenderFrame();
     }
@@ -699,5 +708,252 @@ void SimpleOpenGLClient::CleanupFontTexture() {
         glDeleteTextures(1, &font_texture_id_);
         font_texture_id_ = 0;
         std::cout << "Cleaned up font texture" << std::endl;
+    }
+}
+
+// Input handling implementation
+void SimpleOpenGLClient::SetupInputCallbacks() {
+    if (input_callbacks_setup_ || !window_) {
+        return;
+    }
+
+    // Set GLFW callbacks
+    glfwSetWindowUserPointer(window_, this);
+
+    // Mouse position callback
+    glfwSetCursorPosCallback(window_, [](GLFWwindow* window, double xpos, double ypos) {
+        SimpleOpenGLClient* client = static_cast<SimpleOpenGLClient*>(glfwGetWindowUserPointer(window));
+        if (client && client->network_client_ && client->network_client_->IsConnected()) {
+            spatial::debugger::MouseMoveEvent event;
+            event.x = xpos;
+            event.y = ypos;
+
+            client->mouse_move_events_.push_back(event);
+        }
+    });
+
+    // Mouse button callback
+    glfwSetMouseButtonCallback(window_, [](GLFWwindow* window, int button, int action, int mods) {
+        SimpleOpenGLClient* client = static_cast<SimpleOpenGLClient*>(glfwGetWindowUserPointer(window));
+        if (client && client->network_client_ && client->network_client_->IsConnected()) {
+            spatial::debugger::MouseButtonEvent event;
+            event.button = client->GetImGuiMouseButton(button);
+            event.action = (action == GLFW_PRESS) ?
+                          spatial::debugger::MouseButtonAction::Press :
+                          spatial::debugger::MouseButtonAction::Release;
+
+            glfwGetCursorPos(window, &event.x, &event.y);
+
+            // Set modifier states
+            event.shift_pressed = (mods & GLFW_MOD_SHIFT) != 0;
+            event.ctrl_pressed = (mods & GLFW_MOD_CONTROL) != 0;
+            event.alt_pressed = (mods & GLFW_MOD_ALT) != 0;
+            event.super_pressed = (mods & GLFW_MOD_SUPER) != 0;
+
+            client->mouse_button_events_.push_back(event);
+        }
+    });
+
+    // Mouse wheel callback
+    glfwSetScrollCallback(window_, [](GLFWwindow* window, double xoffset, double yoffset) {
+        SimpleOpenGLClient* client = static_cast<SimpleOpenGLClient*>(glfwGetWindowUserPointer(window));
+        if (client && client->network_client_ && client->network_client_->IsConnected()) {
+            spatial::debugger::MouseWheelEvent event;
+            event.x_offset = xoffset;
+            event.y_offset = yoffset;
+
+            glfwGetCursorPos(window, &event.mouse_x, &event.mouse_y);
+
+            client->mouse_wheel_events_.push_back(event);
+        }
+    });
+
+    // Keyboard key callback
+    glfwSetKeyCallback(window_, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
+        SimpleOpenGLClient* client = static_cast<SimpleOpenGLClient*>(glfwGetWindowUserPointer(window));
+        if (client && client->network_client_ && client->network_client_->IsConnected()) {
+            if (action == GLFW_PRESS || action == GLFW_RELEASE) {
+                spatial::debugger::KeyboardEvent event;
+                event.key_code = client->GetImGuiKeyCode(key);
+                event.action = (action == GLFW_PRESS) ?
+                             spatial::debugger::KeyAction::Press :
+                             spatial::debugger::KeyAction::Release;
+
+                // Set modifier states
+                event.shift_pressed = (mods & GLFW_MOD_SHIFT) != 0;
+                event.ctrl_pressed = (mods & GLFW_MOD_CONTROL) != 0;
+                event.alt_pressed = (mods & GLFW_MOD_ALT) != 0;
+                event.super_pressed = (mods & GLFW_MOD_SUPER) != 0;
+
+                client->keyboard_events_.push_back(event);
+            }
+        }
+    });
+
+    // Char callback
+    glfwSetCharCallback(window_, [](GLFWwindow* window, unsigned int codepoint) {
+        SimpleOpenGLClient* client = static_cast<SimpleOpenGLClient*>(glfwGetWindowUserPointer(window));
+        if (client && client->network_client_ && client->network_client_->IsConnected()) {
+            spatial::debugger::CharEvent event;
+            event.char_code = codepoint;
+
+            client->char_events_.push_back(event);
+        }
+    });
+
+    input_callbacks_setup_ = true;
+    std::cout << "Input callbacks setup completed" << std::endl;
+}
+
+void SimpleOpenGLClient::CaptureInputEvents() {
+    // Input events are captured by callbacks, so we just need to ensure
+    // we don't accumulate too many events
+    if (mouse_move_events_.size() > 50) {
+        mouse_move_events_.erase(mouse_move_events_.begin(), mouse_move_events_.begin() + 25);
+    }
+    if (mouse_button_events_.size() > 20) {
+        mouse_button_events_.erase(mouse_button_events_.begin(), mouse_button_events_.begin() + 10);
+    }
+    if (mouse_wheel_events_.size() > 10) {
+        mouse_wheel_events_.erase(mouse_wheel_events_.begin(), mouse_wheel_events_.begin() + 5);
+    }
+    if (keyboard_events_.size() > 20) {
+        keyboard_events_.erase(keyboard_events_.begin(), keyboard_events_.begin() + 10);
+    }
+    if (char_events_.size() > 20) {
+        char_events_.erase(char_events_.begin(), char_events_.begin() + 10);
+    }
+}
+
+void SimpleOpenGLClient::SendInputEvents() {
+    if (!network_client_ || !network_client_->IsConnected()) {
+        return;
+    }
+
+    spatial::debugger::ImDrawDataSerializer serializer;
+
+    // Send mouse move events
+    for (const auto& event : mouse_move_events_) {
+        auto packet = serializer.getMouseMovePacket(event);
+        if (!packet.GetContents().empty()) {
+            network_client_->SendPacket(packet);
+        }
+    }
+
+    // Send mouse button events
+    for (const auto& event : mouse_button_events_) {
+        auto packet = serializer.getMouseButtonPacket(event);
+        if (!packet.GetContents().empty()) {
+            network_client_->SendPacket(packet);
+        }
+    }
+
+    // Send mouse wheel events
+    for (const auto& event : mouse_wheel_events_) {
+        auto packet = serializer.getMouseWheelPacket(event);
+        if (!packet.GetContents().empty()) {
+            network_client_->SendPacket(packet);
+        }
+    }
+
+    // Send keyboard events
+    for (const auto& event : keyboard_events_) {
+        auto packet = serializer.getKeyboardPacket(event);
+        if (!packet.GetContents().empty()) {
+            network_client_->SendPacket(packet);
+        }
+    }
+
+    // Send char events
+    for (const auto& event : char_events_) {
+        auto packet = serializer.getCharPacket(event);
+        if (!packet.GetContents().empty()) {
+            network_client_->SendPacket(packet);
+        }
+    }
+
+    // Clear sent events
+    mouse_move_events_.clear();
+    mouse_button_events_.clear();
+    mouse_wheel_events_.clear();
+    keyboard_events_.clear();
+    char_events_.clear();
+}
+
+spatial::debugger::MouseButton SimpleOpenGLClient::GetImGuiMouseButton(int glfw_button) {
+    switch (glfw_button) {
+        case GLFW_MOUSE_BUTTON_LEFT: return spatial::debugger::MouseButton::Left;
+        case GLFW_MOUSE_BUTTON_RIGHT: return spatial::debugger::MouseButton::Right;
+        case GLFW_MOUSE_BUTTON_MIDDLE: return spatial::debugger::MouseButton::Middle;
+        case GLFW_MOUSE_BUTTON_4: return spatial::debugger::MouseButton::Extra1;
+        case GLFW_MOUSE_BUTTON_5: return spatial::debugger::MouseButton::Extra2;
+        default: return spatial::debugger::MouseButton::Left;
+    }
+}
+
+uint32_t SimpleOpenGLClient::GetImGuiKeyCode(int glfw_key) {
+    // Map GLFW keys to ImGui keys
+    switch (glfw_key) {
+        case GLFW_KEY_TAB: return 0x100 + 0;  // ImGuiKey_Tab
+        case GLFW_KEY_LEFT: return 0x100 + 81; // ImGuiKey_LeftArrow
+        case GLFW_KEY_RIGHT: return 0x100 + 82; // ImGuiKey_RightArrow
+        case GLFW_KEY_UP: return 0x100 + 83; // ImGuiKey_UpArrow
+        case GLFW_KEY_DOWN: return 0x100 + 84; // ImGuiKey_DownArrow
+        case GLFW_KEY_PAGE_UP: return 0x100 + 85; // ImGuiKey_PageUp
+        case GLFW_KEY_PAGE_DOWN: return 0x100 + 86; // ImGuiKey_PageDown
+        case GLFW_KEY_HOME: return 0x100 + 87; // ImGuiKey_Home
+        case GLFW_KEY_END: return 0x100 + 88; // ImGuiKey_End
+        case GLFW_KEY_INSERT: return 0x100 + 89; // ImGuiKey_Insert
+        case GLFW_KEY_DELETE: return 0x100 + 90; // ImGuiKey_Delete
+        case GLFW_KEY_BACKSPACE: return 0x100 + 91; // ImGuiKey_Backspace
+        case GLFW_KEY_SPACE: return 0x100 + 92; // ImGuiKey_Space
+        case GLFW_KEY_ENTER: return 0x100 + 93; // ImGuiKey_Enter
+        case GLFW_KEY_ESCAPE: return 0x100 + 94; // ImGuiKey_Escape
+        case GLFW_KEY_LEFT_CONTROL: return 0x100 + 224; // ImGuiKey_LeftCtrl
+        case GLFW_KEY_LEFT_SHIFT: return 0x100 + 225; // ImGuiKey_LeftShift
+        case GLFW_KEY_LEFT_ALT: return 0x100 + 226; // ImGuiKey_LeftAlt
+        case GLFW_KEY_LEFT_SUPER: return 0x100 + 227; // ImGuiKey_LeftSuper
+        case GLFW_KEY_RIGHT_CONTROL: return 0x100 + 228; // ImGuiKey_RightCtrl
+        case GLFW_KEY_RIGHT_SHIFT: return 0x100 + 229; // ImGuiKey_RightShift
+        case GLFW_KEY_RIGHT_ALT: return 0x100 + 230; // ImGuiKey_RightAlt
+        case GLFW_KEY_RIGHT_SUPER: return 0x100 + 231; // ImGuiKey_RightSuper
+        case GLFW_KEY_MENU: return 0x100 + 118; // ImGuiKey_Menu
+        case GLFW_KEY_0: return '0';
+        case GLFW_KEY_1: return '1';
+        case GLFW_KEY_2: return '2';
+        case GLFW_KEY_3: return '3';
+        case GLFW_KEY_4: return '4';
+        case GLFW_KEY_5: return '5';
+        case GLFW_KEY_6: return '6';
+        case GLFW_KEY_7: return '7';
+        case GLFW_KEY_8: return '8';
+        case GLFW_KEY_9: return '9';
+        case GLFW_KEY_A: return 'A';
+        case GLFW_KEY_B: return 'B';
+        case GLFW_KEY_C: return 'C';
+        case GLFW_KEY_D: return 'D';
+        case GLFW_KEY_E: return 'E';
+        case GLFW_KEY_F: return 'F';
+        case GLFW_KEY_G: return 'G';
+        case GLFW_KEY_H: return 'H';
+        case GLFW_KEY_I: return 'I';
+        case GLFW_KEY_J: return 'J';
+        case GLFW_KEY_K: return 'K';
+        case GLFW_KEY_L: return 'L';
+        case GLFW_KEY_M: return 'M';
+        case GLFW_KEY_N: return 'N';
+        case GLFW_KEY_O: return 'O';
+        case GLFW_KEY_P: return 'P';
+        case GLFW_KEY_Q: return 'Q';
+        case GLFW_KEY_R: return 'R';
+        case GLFW_KEY_S: return 'S';
+        case GLFW_KEY_T: return 'T';
+        case GLFW_KEY_U: return 'U';
+        case GLFW_KEY_V: return 'V';
+        case GLFW_KEY_W: return 'W';
+        case GLFW_KEY_X: return 'X';
+        case GLFW_KEY_Y: return 'Y';
+        case GLFW_KEY_Z: return 'Z';
+        default: return glfw_key;
     }
 }

@@ -40,6 +40,13 @@ class ImDrawDataSerializer {
   NetPacketBuffer getFontTexturePacket(uint32_t texture_id, unsigned char* pixels,
                                        int width, int height, uint32_t format = 0);
 
+  // Individual input event serialization
+  NetPacketBuffer getMouseMovePacket(const MouseMoveEvent& event);
+  NetPacketBuffer getMouseButtonPacket(const MouseButtonEvent& event);
+  NetPacketBuffer getMouseWheelPacket(const MouseWheelEvent& event);
+  NetPacketBuffer getKeyboardPacket(const KeyboardEvent& event);
+  NetPacketBuffer getCharPacket(const CharEvent& event);
+
  private:
   std::vector<uint8_t> serialized_data_;
   ImDrawData* current_draw_data_;
@@ -58,6 +65,13 @@ class ImDrawDataSerializer {
 
   // Write byte data
   void writeBytes(const uint8_t* data, size_t size);
+
+  // Serialize individual input events
+  void serializeMouseMoveEvent(const MouseMoveEvent& event);
+  void serializeMouseButtonEvent(const MouseButtonEvent& event);
+  void serializeMouseWheelEvent(const MouseWheelEvent& event);
+  void serializeKeyboardEvent(const KeyboardEvent& event);
+  void serializeCharEvent(const CharEvent& event);
 };
 
 }  // namespace spatial::debugger

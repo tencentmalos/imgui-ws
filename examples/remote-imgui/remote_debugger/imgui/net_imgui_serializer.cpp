@@ -243,4 +243,116 @@ NetPacketBuffer ImDrawDataSerializer::getFontTexturePacket(uint32_t texture_id,
   return packet;
 }
 
+// Individual input event serialization implementations
+NetPacketBuffer ImDrawDataSerializer::getMouseMovePacket(const MouseMoveEvent& event) {
+    NetPacketBuffer packet;
+    serialized_data_.clear();
+
+    serializeMouseMoveEvent(event);
+
+    auto header = NetPacketEncoder::CreaterPacketHeader(NetServiceType::RemoteImgui,
+                                        (uint16_t)ImGuiCommand::MouseMoveEvent,
+                                        serialized_data_.size());
+
+    packet.Initialize(header, serialized_data_.data(), serialized_data_.size());
+
+    return packet;
+}
+
+NetPacketBuffer ImDrawDataSerializer::getMouseButtonPacket(const MouseButtonEvent& event) {
+    NetPacketBuffer packet;
+    serialized_data_.clear();
+
+    serializeMouseButtonEvent(event);
+
+    auto header = NetPacketEncoder::CreaterPacketHeader(NetServiceType::RemoteImgui,
+                                        (uint16_t)ImGuiCommand::MouseButtonEvent,
+                                        serialized_data_.size());
+
+    packet.Initialize(header, serialized_data_.data(), serialized_data_.size());
+
+    return packet;
+}
+
+NetPacketBuffer ImDrawDataSerializer::getMouseWheelPacket(const MouseWheelEvent& event) {
+    NetPacketBuffer packet;
+    serialized_data_.clear();
+
+    serializeMouseWheelEvent(event);
+
+    auto header = NetPacketEncoder::CreaterPacketHeader(NetServiceType::RemoteImgui,
+                                        (uint16_t)ImGuiCommand::MouseWheelEvent,
+                                        serialized_data_.size());
+
+    packet.Initialize(header, serialized_data_.data(), serialized_data_.size());
+
+    return packet;
+}
+
+NetPacketBuffer ImDrawDataSerializer::getKeyboardPacket(const KeyboardEvent& event) {
+    NetPacketBuffer packet;
+    serialized_data_.clear();
+
+    serializeKeyboardEvent(event);
+
+    auto header = NetPacketEncoder::CreaterPacketHeader(NetServiceType::RemoteImgui,
+                                        (uint16_t)ImGuiCommand::KeyboardEvent,
+                                        serialized_data_.size());
+
+    packet.Initialize(header, serialized_data_.data(), serialized_data_.size());
+
+    return packet;
+}
+
+NetPacketBuffer ImDrawDataSerializer::getCharPacket(const CharEvent& event) {
+    NetPacketBuffer packet;
+    serialized_data_.clear();
+
+    serializeCharEvent(event);
+
+    auto header = NetPacketEncoder::CreaterPacketHeader(NetServiceType::RemoteImgui,
+                                        (uint16_t)ImGuiCommand::CharEvent,
+                                        serialized_data_.size());
+
+    packet.Initialize(header, serialized_data_.data(), serialized_data_.size());
+
+    return packet;
+}
+
+void ImDrawDataSerializer::serializeMouseMoveEvent(const MouseMoveEvent& event) {
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.x), sizeof(event.x));
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.y), sizeof(event.y));
+}
+
+void ImDrawDataSerializer::serializeMouseButtonEvent(const MouseButtonEvent& event) {
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.button), sizeof(event.button));
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.action), sizeof(event.action));
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.x), sizeof(event.x));
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.y), sizeof(event.y));
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.shift_pressed), sizeof(event.shift_pressed));
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.ctrl_pressed), sizeof(event.ctrl_pressed));
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.alt_pressed), sizeof(event.alt_pressed));
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.super_pressed), sizeof(event.super_pressed));
+}
+
+void ImDrawDataSerializer::serializeMouseWheelEvent(const MouseWheelEvent& event) {
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.x_offset), sizeof(event.x_offset));
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.y_offset), sizeof(event.y_offset));
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.mouse_x), sizeof(event.mouse_x));
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.mouse_y), sizeof(event.mouse_y));
+}
+
+void ImDrawDataSerializer::serializeKeyboardEvent(const KeyboardEvent& event) {
+    writeUint32(event.key_code);
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.action), sizeof(event.action));
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.shift_pressed), sizeof(event.shift_pressed));
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.ctrl_pressed), sizeof(event.ctrl_pressed));
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.alt_pressed), sizeof(event.alt_pressed));
+    writeBytes(reinterpret_cast<const uint8_t*>(&event.super_pressed), sizeof(event.super_pressed));
+}
+
+void ImDrawDataSerializer::serializeCharEvent(const CharEvent& event) {
+    writeUint32(event.char_code);
+}
+
 }  // namespace spatial::debugger

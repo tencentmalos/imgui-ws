@@ -18,6 +18,11 @@ enum class ImGuiCommand : uint16_t {
     FrameData = 0x1,         // Complete frame data
     FontTexture = 0x2,       // Font texture data
     TextureUpdate = 0x3,     // Texture update data
+    MouseMoveEvent = 0x4,    // Mouse movement event
+    MouseButtonEvent = 0x5,  // Mouse button event (down/up)
+    MouseWheelEvent = 0x6,   // Mouse wheel event
+    KeyboardEvent = 0x7,     // Keyboard event (down/up)
+    CharEvent = 0x8,         // Character input event
 };
 
 // Frame data structures for deserialization
@@ -73,6 +78,70 @@ struct CmdListData {
 struct FrameData {
   FrameHeader header;
   std::vector<CmdListData> cmd_lists;
+};
+
+
+// Mouse button enumeration
+enum class MouseButton : uint8_t {
+    Left = 0,
+    Right = 1,
+    Middle = 2,
+    Extra1 = 3,
+    Extra2 = 4,
+};
+
+// Key action enumeration
+enum class KeyAction : uint8_t {
+    Release = 0,
+    Press = 1,
+    Repeat = 2,
+};
+
+// Mouse button action enumeration
+enum class MouseButtonAction : uint8_t {
+    Release = 0,
+    Press = 1,
+};
+
+// Mouse movement event structure
+struct MouseMoveEvent {
+    double x;
+    double y;
+};
+
+// Mouse button event structure
+struct MouseButtonEvent {
+    MouseButton button;
+    MouseButtonAction action;
+    double x;
+    double y;
+    bool shift_pressed;
+    bool ctrl_pressed;
+    bool alt_pressed;
+    bool super_pressed;
+};
+
+// Mouse wheel event structure
+struct MouseWheelEvent {
+    double x_offset;
+    double y_offset;
+    double mouse_x;
+    double mouse_y;
+};
+
+// Keyboard event structure
+struct KeyboardEvent {
+    uint32_t key_code;       // ImGuiKey
+    KeyAction action;
+    bool shift_pressed;
+    bool ctrl_pressed;
+    bool alt_pressed;
+    bool super_pressed;
+};
+
+// Character input event structure
+struct CharEvent {
+    uint32_t char_code;      // Unicode code point
 };
 
 

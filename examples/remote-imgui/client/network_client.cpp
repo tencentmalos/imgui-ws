@@ -11,16 +11,14 @@
 #endif
 
 NetworkClient::NetworkClient() :
-    base_(nullptr), bev_(nullptr), running_(false), connected_(false), server_port_(0) {
-}
+    base_(nullptr), bev_(nullptr), running_(false), connected_(false), server_port_(0) {}
 
-NetworkClient::~NetworkClient() { 
-    Disconnect(); 
+NetworkClient::~NetworkClient() {
+    Disconnect();
     Cleanup();
 }
 
-bool NetworkClient::Initialize()
-{
+bool NetworkClient::Initialize() {
     // Create event base
     base_ = event_base_new();
     if (!base_) [[unlikeyly]] {
@@ -100,7 +98,16 @@ void NetworkClient::Disconnect() {
     DestroyClientBev();
 }
 
-bool NetworkClient::Send(const uint8_t* data, size_t size) {
+bool NetworkClient::SendPacket(const spatial::debugger::NetPacketBuffer& packet) {
+    auto& header = packet.GetHeader();
+    auto& content = packet.GetContents();
+
+    bool isSuc = SendRawData((const uint8_t*) &header, sizeof(header));
+    if (isSuc) { isSuc = SendRawData(content.data(), content.size()); }
+    return isSuc;
+}
+
+bool NetworkClient::SendRawData(const uint8_t* data, size_t size) {
     if (!connected_ || !bev_ || !data || size == 0) { return false; }
 
     int result = bufferevent_write(bev_, data, size);

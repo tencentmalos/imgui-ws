@@ -303,4 +303,162 @@ bool ImDrawDataDeserializer::ValidateData() const {
     return true;
 }
 
+// Individual input event deserialization implementations
+bool ImDrawDataDeserializer::DeserializeMouseMoveEvent(const NetPacketBuffer& packet, MouseMoveEvent& event) {
+    auto& temp_data = packet.GetContents();
+    if (temp_data.empty()) [[unlikely]] {
+        std::cerr << "Invalid mouse move event packet data" << std::endl;
+        return false;
+    }
+
+    size_t size = temp_data.size();
+    size_t offset = 0;
+
+    return ParseMouseMoveEvent(event, temp_data, size, offset);
+}
+
+bool ImDrawDataDeserializer::DeserializeMouseButtonEvent(const NetPacketBuffer& packet, MouseButtonEvent& event) {
+    auto& temp_data = packet.GetContents();
+    if (temp_data.empty()) [[unlikely]] {
+        std::cerr << "Invalid mouse button event packet data" << std::endl;
+        return false;
+    }
+
+    size_t size = temp_data.size();
+    size_t offset = 0;
+
+    return ParseMouseButtonEvent(event, temp_data, size, offset);
+}
+
+bool ImDrawDataDeserializer::DeserializeMouseWheelEvent(const NetPacketBuffer& packet, MouseWheelEvent& event) {
+    auto& temp_data = packet.GetContents();
+    if (temp_data.empty()) [[unlikely]] {
+        std::cerr << "Invalid mouse wheel event packet data" << std::endl;
+        return false;
+    }
+
+    size_t size = temp_data.size();
+    size_t offset = 0;
+
+    return ParseMouseWheelEvent(event, temp_data, size, offset);
+}
+
+bool ImDrawDataDeserializer::DeserializeKeyboardEvent(const NetPacketBuffer& packet, KeyboardEvent& event) {
+    auto& temp_data = packet.GetContents();
+    if (temp_data.empty()) [[unlikely]] {
+        std::cerr << "Invalid keyboard event packet data" << std::endl;
+        return false;
+    }
+
+    size_t size = temp_data.size();
+    size_t offset = 0;
+
+    return ParseKeyboardEvent(event, temp_data, size, offset);
+}
+
+bool ImDrawDataDeserializer::DeserializeCharEvent(const NetPacketBuffer& packet, CharEvent& event) {
+    auto& temp_data = packet.GetContents();
+    if (temp_data.empty()) [[unlikely]] {
+        std::cerr << "Invalid char event packet data" << std::endl;
+        return false;
+    }
+
+    size_t size = temp_data.size();
+    size_t offset = 0;
+
+    return ParseCharEvent(event, temp_data, size, offset);
+}
+
+bool ImDrawDataDeserializer::ParseMouseMoveEvent(MouseMoveEvent& event, const std::vector<uint8_t>& data, size_t size, size_t& offset) {
+    if (offset + sizeof(double) * 2 > size) {
+        std::cerr << "Not enough data for mouse move event" << std::endl;
+        return false;
+    }
+
+    memcpy(&event.x, &data[offset], sizeof(event.x));
+    offset += sizeof(event.x);
+    memcpy(&event.y, &data[offset], sizeof(event.y));
+    offset += sizeof(event.y);
+
+    return true;
+}
+
+bool ImDrawDataDeserializer::ParseMouseButtonEvent(MouseButtonEvent& event, const std::vector<uint8_t>& data, size_t size, size_t& offset) {
+    if (offset + sizeof(MouseButton) + sizeof(MouseButtonAction) + sizeof(double) * 2 + sizeof(bool) * 4 > size) {
+        std::cerr << "Not enough data for mouse button event" << std::endl;
+        return false;
+    }
+
+    memcpy(&event.button, &data[offset], sizeof(event.button));
+    offset += sizeof(event.button);
+    memcpy(&event.action, &data[offset], sizeof(event.action));
+    offset += sizeof(event.action);
+    memcpy(&event.x, &data[offset], sizeof(event.x));
+    offset += sizeof(event.x);
+    memcpy(&event.y, &data[offset], sizeof(event.y));
+    offset += sizeof(event.y);
+    memcpy(&event.shift_pressed, &data[offset], sizeof(event.shift_pressed));
+    offset += sizeof(event.shift_pressed);
+    memcpy(&event.ctrl_pressed, &data[offset], sizeof(event.ctrl_pressed));
+    offset += sizeof(event.ctrl_pressed);
+    memcpy(&event.alt_pressed, &data[offset], sizeof(event.alt_pressed));
+    offset += sizeof(event.alt_pressed);
+    memcpy(&event.super_pressed, &data[offset], sizeof(event.super_pressed));
+    offset += sizeof(event.super_pressed);
+
+    return true;
+}
+
+bool ImDrawDataDeserializer::ParseMouseWheelEvent(MouseWheelEvent& event, const std::vector<uint8_t>& data, size_t size, size_t& offset) {
+    if (offset + sizeof(double) * 4 > size) {
+        std::cerr << "Not enough data for mouse wheel event" << std::endl;
+        return false;
+    }
+
+    memcpy(&event.x_offset, &data[offset], sizeof(event.x_offset));
+    offset += sizeof(event.x_offset);
+    memcpy(&event.y_offset, &data[offset], sizeof(event.y_offset));
+    offset += sizeof(event.y_offset);
+    memcpy(&event.mouse_x, &data[offset], sizeof(event.mouse_x));
+    offset += sizeof(event.mouse_x);
+    memcpy(&event.mouse_y, &data[offset], sizeof(event.mouse_y));
+    offset += sizeof(event.mouse_y);
+
+    return true;
+}
+
+bool ImDrawDataDeserializer::ParseKeyboardEvent(KeyboardEvent& event, const std::vector<uint8_t>& data, size_t size, size_t& offset) {
+    if (offset + sizeof(uint32_t) + sizeof(KeyAction) + sizeof(bool) * 4 > size) {
+        std::cerr << "Not enough data for keyboard event" << std::endl;
+        return false;
+    }
+
+    memcpy(&event.key_code, &data[offset], sizeof(event.key_code));
+    offset += sizeof(event.key_code);
+    memcpy(&event.action, &data[offset], sizeof(event.action));
+    offset += sizeof(event.action);
+    memcpy(&event.shift_pressed, &data[offset], sizeof(event.shift_pressed));
+    offset += sizeof(event.shift_pressed);
+    memcpy(&event.ctrl_pressed, &data[offset], sizeof(event.ctrl_pressed));
+    offset += sizeof(event.ctrl_pressed);
+    memcpy(&event.alt_pressed, &data[offset], sizeof(event.alt_pressed));
+    offset += sizeof(event.alt_pressed);
+    memcpy(&event.super_pressed, &data[offset], sizeof(event.super_pressed));
+    offset += sizeof(event.super_pressed);
+
+    return true;
+}
+
+bool ImDrawDataDeserializer::ParseCharEvent(CharEvent& event, const std::vector<uint8_t>& data, size_t size, size_t& offset) {
+    if (offset + sizeof(uint32_t) > size) {
+        std::cerr << "Not enough data for char event" << std::endl;
+        return false;
+    }
+
+    memcpy(&event.char_code, &data[offset], sizeof(event.char_code));
+    offset += sizeof(event.char_code);
+
+    return true;
+}
+
 }// namespace spatial::debugger

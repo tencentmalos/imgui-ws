@@ -11,6 +11,8 @@
 #include <event2/bufferevent.h>
 #include <event2/buffer.h>
 
+#include "net_packet_buffer.hpp"
+
 // Forward declarations
 struct event_base;
 struct bufferevent;
@@ -39,8 +41,7 @@ public:
     // Check if connected
     bool IsConnected() const { return connected_; }
 
-    // Send data to server
-    bool Send(const uint8_t* data, size_t size);
+    bool SendPacket(const spatial::debugger::NetPacketBuffer& packet);
 
     // Set callbacks
     void SetConnectCallback(ConnectCallback callback) { connect_callback_ = callback; }
@@ -53,6 +54,9 @@ public:
     // Event loop integration
     void ProcessEvents();  // Non-blocking event processing
 private:
+    // Send data to server
+    bool SendRawData(const uint8_t* data, size_t size);
+
     // Event callbacks
     static void ReadCallback(bufferevent* bev, void* ctx);
     static void EventCallback(bufferevent* bev, short events, void* ctx);
