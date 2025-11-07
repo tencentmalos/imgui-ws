@@ -808,21 +808,23 @@ void SimpleOpenGLClient::SetupInputCallbacks() {
 void SimpleOpenGLClient::CaptureInputEvents() {
     // Input events are captured by callbacks, so we just need to ensure
     // we don't accumulate too many events
-    if (mouse_move_events_.size() > 50) {
-        mouse_move_events_.erase(mouse_move_events_.begin(), mouse_move_events_.begin() + 25);
-    }
-    if (mouse_button_events_.size() > 20) {
-        mouse_button_events_.erase(mouse_button_events_.begin(), mouse_button_events_.begin() + 10);
-    }
-    if (mouse_wheel_events_.size() > 10) {
-        mouse_wheel_events_.erase(mouse_wheel_events_.begin(), mouse_wheel_events_.begin() + 5);
-    }
-    if (keyboard_events_.size() > 20) {
-        keyboard_events_.erase(keyboard_events_.begin(), keyboard_events_.begin() + 10);
-    }
-    if (char_events_.size() > 20) {
-        char_events_.erase(char_events_.begin(), char_events_.begin() + 10);
-    }
+    
+    //Don't erase events here
+    ////if (mouse_move_events_.size() > 50) {
+    ////    mouse_move_events_.erase(mouse_move_events_.begin(), mouse_move_events_.begin() + 25);
+    ////}
+    ////if (mouse_button_events_.size() > 20) {
+    ////    mouse_button_events_.erase(mouse_button_events_.begin(), mouse_button_events_.begin() + 10);
+    ////}
+    ////if (mouse_wheel_events_.size() > 10) {
+    ////    mouse_wheel_events_.erase(mouse_wheel_events_.begin(), mouse_wheel_events_.begin() + 5);
+    ////}
+    ////if (keyboard_events_.size() > 20) {
+    ////    keyboard_events_.erase(keyboard_events_.begin(), keyboard_events_.begin() + 10);
+    ////}
+    ////if (char_events_.size() > 20) {
+    ////    char_events_.erase(char_events_.begin(), char_events_.begin() + 10);
+    ////}
 }
 
 void SimpleOpenGLClient::SendInputEvents() {
